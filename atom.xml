@@ -5,7 +5,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="http://blog.xiaokezhao.com/"/>
-  <updated>2016-06-13T15:58:26.881Z</updated>
+  <updated>2017-01-15T16:13:28.368Z</updated>
   <id>http://blog.xiaokezhao.com/</id>
   
   <author>
@@ -14,6 +14,57 @@
   </author>
   
   <generator uri="http://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>常看的 blog</title>
+    <link href="http://blog.xiaokezhao.com/2017/01/16/my-tech-blog-list/"/>
+    <id>http://blog.xiaokezhao.com/2017/01/16/my-tech-blog-list/</id>
+    <published>2017-01-15T16:13:24.202Z</published>
+    <updated>2017-01-15T16:13:28.368Z</updated>
+    
+    <content type="html"><![CDATA[<p>Tech</p>
+<p><a href="https://github.com/kilimchoi/engineering-blogs" target="_blank" rel="external">enginnering-blogs</a></p>
+<ul>
+<li><a href="https://blog.twitter.com/engineering" target="_blank" rel="external">twitter</a></li>
+<li><a href="https://engineering.zomato.com/" target="_blank" rel="external">zomato</a></li>
+<li><a href="http://githubengineering.com/" target="_blank" rel="external">github</a></li>
+<li><a href="http://engineering.gusto.com/" target="_blank" rel="external">gusto</a></li>
+<li><a href="https://www.paypal-engineering.com/" target="_blank" rel="external">paypal</a></li>
+<li><a href="https://engblog.nextdoor.com/" target="_blank" rel="external">nextdoor</a></li>
+<li><a href="https://blog.asana.com/category/eng/" target="_blank" rel="external">asana</a></li>
+<li><a href="https://stackoverflow.blog/engineering/" target="_blank" rel="external">stackoverflow</a></li>
+<li><a href="https://www.eventbrite.com/engineering/" target="_blank" rel="external">eventbrite</a></li>
+<li><a href="https://codeascraft.com/" target="_blank" rel="external">etsy</a></li>
+<li><a href="https://medium.com/square-corner-blog" target="_blank" rel="external">square</a></li>
+<li><a href="http://artsy.github.io/" target="_blank" rel="external">artsy</a></li>
+<li><a href="https://engineering.squarespace.com/" target="_blank" rel="external">squarespace</a></li>
+<li><a href="https://engineeringblog.yelp.com/" target="_blank" rel="external">yelp</a></li>
+<li><a href="https://blog.box.com/blog/engineering/" target="_blank" rel="external">box</a></li>
+<li><a href="https://engineering.riotgames.com/" target="_blank" rel="external">riotgames</a></li>
+<li><a href="https://engineering.pinterest.com/" target="_blank" rel="external">pinterest</a></li>
+<li><a href="https://engineering.quora.com/" target="_blank" rel="external">quora</a></li>
+<li><a href="https://eng.uber.com/" target="_blank" rel="external">uber</a></li>
+<li><a href="https://code.facebook.com/posts/" target="_blank" rel="external">facebook</a></li>
+<li><a href="https://engineering.linkedin.com/blog" target="_blank" rel="external">linkedin</a></li>
+<li><a href="https://blog.codinghorror.com" target="_blank" rel="external">codinghorror</a></li>
+<li><a href="http://techblog.netflix.com/" target="_blank" rel="external">netflix</a></li>
+<li><a href="http://engineering.indeedblog.com/blog/" target="_blank" rel="external">indeed</a></li>
+<li><a href="https://code.facebook.com" target="_blank" rel="external">facebook</a></li>
+<li><a href="https://labs.spotify.com" target="_blank" rel="external">spotify</a></li>
+</ul>
+]]></content>
+    
+    <summary type="html">
+    
+      &lt;p&gt;Tech&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;https://github.com/kilimchoi/engineering-blogs&quot; target=&quot;_blank&quot; rel=&quot;external&quot;&gt;enginnering-blogs&lt;/a&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a
+    
+    </summary>
+    
+    
+  </entry>
   
   <entry>
     <title>Hello World</title>
