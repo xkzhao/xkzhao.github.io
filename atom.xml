@@ -5,7 +5,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="http://blog.xiaokezhao.com/"/>
-  <updated>2017-10-08T06:56:33.543Z</updated>
+  <updated>2017-10-08T07:29:40.546Z</updated>
   <id>http://blog.xiaokezhao.com/</id>
   
   <author>
@@ -14,6 +14,30 @@
   </author>
   
   <generator uri="http://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>hexo 使用命令</title>
+    <link href="http://blog.xiaokezhao.com/2017/10/08/hexo-usage/"/>
+    <id>http://blog.xiaokezhao.com/2017/10/08/hexo-usage/</id>
+    <published>2017-10-08T07:24:22.929Z</published>
+    <updated>2017-10-08T07:29:40.546Z</updated>
+    
+    <content type="html"><![CDATA[<p>打开 git bash 命令行界面， 进入 hexo 目录下面。</p>
+<h4 id="1-创建新的-post"><a href="#1-创建新的-post" class="headerlink" title="1. 创建新的 post"></a>1. 创建新的 post</h4><ul>
+<li>使用命令 <code>hexo new post &quot;name of the post&quot;</code></li>
+<li>或者直接在 <code>hexo\source\_posts</code> 目录下创建 以<code>.md</code>结尾的文件。</li>
+</ul>
+<h4 id="2-hexo-g-amp-amp-hexo-s-预览"><a href="#2-hexo-g-amp-amp-hexo-s-预览" class="headerlink" title="2. hexo g &amp;&amp; hexo s 预览"></a>2. hexo g &amp;&amp; hexo s 预览</h4><h4 id="3-hexo-d-g-部署到-github-上-输入-github-的用户名和密码"><a href="#3-hexo-d-g-部署到-github-上-输入-github-的用户名和密码" class="headerlink" title="3. hexo d -g 部署到 github 上. (输入 github 的用户名和密码)"></a>3. hexo d -g 部署到 github 上. (输入 github 的用户名和密码)</h4>]]></content>
+    
+    <summary type="html">
+    
+      &lt;p&gt;打开 git bash 命令行界面， 进入 hexo 目录下面。&lt;/p&gt;
+&lt;h4 id=&quot;1-创建新的-post&quot;&gt;&lt;a href=&quot;#1-创建新的-post&quot; class=&quot;headerlink&quot; title=&quot;1. 创建新的 post&quot;&gt;&lt;/a&gt;1. 创建新的 post
+    
+    </summary>
+    
+    
+  </entry>
   
   <entry>
     <title>Focus and Control your attention</title>
