@@ -5,7 +5,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="http://blog.xiaokezhao.com/"/>
-  <updated>2017-11-20T16:53:17.897Z</updated>
+  <updated>2017-11-20T16:55:27.516Z</updated>
   <id>http://blog.xiaokezhao.com/</id>
   
   <author>
@@ -16,11 +16,11 @@
   <generator uri="http://hexo.io/">Hexo</generator>
   
   <entry>
-    <title>理解 linux 内存</title>
+    <title>理解 linux 内存 (1)</title>
     <link href="http://blog.xiaokezhao.com/2017/11/20/understand-linux-memory-1/"/>
     <id>http://blog.xiaokezhao.com/2017/11/20/understand-linux-memory-1/</id>
     <published>2017-11-20T15:52:39.886Z</published>
-    <updated>2017-11-20T16:53:17.897Z</updated>
+    <updated>2017-11-20T16:55:27.516Z</updated>
     
     <content type="html"><![CDATA[<h2 id="1-maps"><a href="#1-maps" class="headerlink" title="1. maps"></a>1. maps</h2><p>maps  描述了一个进程的连续虚拟内存区域。</p>
 <p>格式：</p>
