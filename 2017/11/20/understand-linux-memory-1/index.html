@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>理解 linux 内存 | Xiaoke&#39;s Blog</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <link rel="shortcut icon" href="/favicon.ico"> 
+  <link rel="stylesheet" href="/css/app.css">
+  <!-- <link rel='stylesheet' href='http://fonts.useso.com/css?family=Source+Code+Pro'> -->
+</head>
+
+<body>
+  <nav class="app-nav">
+  
+      
+        <a class="active" href="/">home</a>
+        
+
+      
+  
+      
+        <a href="/archives">archive</a>
+      
+  
+      
+        <a href="/about/index.html">about</a>
+      
+  
+      
+        <a href="/atom.xml">rss</a>
+      
+  
+</nav>
+
+  <main class="post">
+  <article>
+  <h1 class="article-title">
+    <a href="/2017/11/20/understand-linux-memory-1/">理解 linux 内存</a>
+  </h1>
+
+  <section class="article-meta">
+    <p class="article-date">November 20 2017</p>
+  </section>
+
+  <section class="article-entry">
+    <h2 id="1-maps"><a href="#1-maps" class="headerlink" title="1. maps"></a>1. maps</h2><p>maps  描述了一个进程的连续虚拟内存区域。</p>
+<p>格式：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">address perms offset dev inode pathname</span><br><span class="line">08048000-08056000 r-xp 00000000 03:0c 64593 /usr/sbin/gpm</span><br></pre></td></tr></table></figure>
+<p>address： 连续区域的起始地址</p>
+<p>perms：这个区域的访问权限。 有四种： 读、写、可执行、共享。 如果一块区域不和其他进程共享，那么就会有一个p的标志。否则，是一个 s 的标志。 权限可以通过mprotect 系统调用来修改。</p>
+<p>offset：如果这个区域是从通过文件映射得到的（使用mmap获得的），那么offset就是该文件中的起始映射偏移。如果内存不是从文件映射得到的，那么offset就是0.</p>
+<p>dev：如果是从文件映射的，那么dev就是文件所在设备的设备号。major:minor device number.</p>
+<p>inode: 如果是从文件映射的，那么inode就是文件的inode。</p>
+<p>pathname: 如果是从文件映射的，那么 pathname 就是文件的路径。 对于匿名映射区域来说，pathname是空的。也有一些特殊的区域，pathname 是[heap] [stack] [vdso] 之类的。</p>
+<p>mmap 不只用来将文件映射进内存，通常还用于分配大块的内存以及创建共享内存。这种情况下，inode 是0.</p>
+<p>smaps 比 mmap更加详细。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">00400000-00444000 r-xp 00000000 08:04 164626855                          /data/plat/data_receiver/data_writer/bin/mcd</span><br><span class="line">Size:                272 kB</span><br><span class="line">Rss:                 212 kB</span><br><span class="line">Pss:                  83 kB</span><br><span class="line">Shared_Clean:        196 kB</span><br><span class="line">Shared_Dirty:          0 kB</span><br><span class="line">Private_Clean:        16 kB</span><br><span class="line">Private_Dirty:         0 kB</span><br><span class="line">Referenced:          212 kB</span><br><span class="line">Anonymous:             0 kB</span><br><span class="line">AnonHugePages:         0 kB</span><br><span class="line">Swap:                  0 kB</span><br><span class="line">KernelPageSize:        4 kB</span><br><span class="line">MMUPageSize:           4 kB</span><br><span class="line">Locked:                0 kB</span><br><span class="line">VmFlags: rd ex mr mw me dw</span><br><span class="line"></span><br><span class="line">7eaf1e600000-7eaf3e600000 rw-s 00000000 00:04 458766                     /SYSV01234567 (deleted)</span><br><span class="line">Size:             524288 kB</span><br><span class="line">Rss:              356160 kB</span><br><span class="line">Pss:                2175 kB</span><br><span class="line">Shared_Clean:          0 kB</span><br><span class="line">Shared_Dirty:     356160 kB</span><br><span class="line">Private_Clean:         0 kB</span><br><span class="line">Private_Dirty:         0 kB</span><br><span class="line">Referenced:       356160 kB</span><br><span class="line">Anonymous:             0 kB</span><br><span class="line">AnonHugePages:         0 kB</span><br><span class="line">Swap:                  0 kB</span><br><span class="line">KernelPageSize:        4 kB</span><br><span class="line">MMUPageSize:           4 kB</span><br><span class="line">Locked:                0 kB</span><br><span class="line">VmFlags: rd wr sh mr mw me ms</span><br></pre></td></tr></table></figure></p>
+<p>size 是这个映射区域的大小。</p>
+<p>RSS 是映射区域中当前驻留在内存中的大小。包括共享和不共享的内存页。</p>
+<p>RSS = shared_clean + shared_dirty + private_clearn + private_dirty</p>
+<p>Pss:  proportional set size, 表示一个进程拥有的在内存中的页数。每个页除去所有共享这个页的进程数目。 比如一个进程有1000 个私有页，1000 个与另外一个进程共享的页，那么这个进程的Pss就是1000 + 1000/2=1500.</p>
+<p>“Referenced”：  indicates the amount of memory currently marked as referenced or accessed. </p>
+<p>top 命令中的RSS 可以通过对 进程smaps中的Rss 相加获得。awk ‘/Rss:/{ sum += $2 } END { print sum }’ /proc/$$/smaps</p>
+<p>通过对 Smaps中的Pss相加，可以获得进程总体的PSS。</p>
+<p>Smaps中没有USS， 可以通过对smpas 中的private_clean+prive_dirty相加获得。  uss: (unique set size ), is a simple count of unshared pages. 私有内存页数目。</p>
+<p>Pss 和 Uss 由 Matt Mackall  引进 linux。[ELC: How much memory are applications really using?]  (<a href="https://lwn.net/Articles/230975/" target="_blank" rel="external">https://lwn.net/Articles/230975/</a>)</p>
+<p>vmFlags:<br>“VmFlags” field deserves a separate description. This member represents the kernel<br>flags associated with the particular virtual memory area in two letter encoded<br>manner. The codes are the following:<br>rd - readable<br>wr - writeable<br>ex - executable<br>sh - shared<br>mr - may read<br>mw - may write<br>me - may execute<br>ms - may share<br>gd - stack segment growns down<br>pf - pure PFN range<br>dw - disabled write to the mapped file<br>lo - pages are locked in memory<br>io - memory mapped I/O area<br>sr - sequential read advise provided<br>rr - random read advise provided<br>dc - do not copy area on fork<br>de - do not expand area on remapping<br>ac - area is accountable<br>nr - swap space is not reserved for the area<br>ht - area uses huge tlb pages<br>ar - architecture specific flag<br>dd - do not include area into core dump<br>sd - soft-dirty flag<br>mm - mixed map area<br>hg - huge page advise flag<br>nh - no-huge page advise flag<br>mg - mergable advise flag</p>
+<h2 id="2-进程地址空间"><a href="#2-进程地址空间" class="headerlink" title="2. 进程地址空间"></a>2. 进程地址空间</h2><p>进程地址空间是虚拟内存，OS通过页表来将虚拟地址翻译成物理地址。虚拟地址的好处：</p>
+<pre><code>* 进程地址空间隔离。每个进程不会访问到其他进程的地址。除非是共享内存。
+* 硬件抽象。进程只能看到虚拟地址，不需要关心映射到的物理地址。内核可以改变映射的物理地址，而不影响虚拟地址。比如，当被fork进程写内存时，才将虚拟地址映射到自己的物理内存。内核也可以将物理内存挪到硬盘上，等到进程需要时再加载进来。对于这些过程，进程是无感知的。
+* 给没有存储在RAM中的事物赋予地址。比如，通过mmap将文件映射到进程地址空间中，进程可以像访问内存一样，访问文件。
+* 共享。将多个进程共同使用的数据进行共享，只在内存中保留一份，通过映射表，将不同进程的虚拟地址映射到同一个物理地址。
+</code></pre><p>内核的内存管理单元是页，通常是4KB。</p>
+<p>内存类型，按照是否有文件映射或是否共享，分为四类。</p>
+<p><img src="/content/images/2017/understand-linux-memory-1/process-memory-quadrant.png" width="700" height="270"></p>
+<p>文件映射的内存，内核按需加载文件中的数据，当然，用户可以告诉内核是否需要预取文件中的数据到内存。</p>
+<p><a href="https://techtalk.intersec.com/2013/07/memory-part-1-memory-types/#rf2-22" target="_blank" rel="external">Memory – Part 1: Memory Types</a></p>
+<h2 id="3-memory-stat"><a href="#3-memory-stat" class="headerlink" title="3. memory stat"></a>3. memory stat</h2><p>查看一个进程使用的内存情况，是比较复杂的。通常使用 top命令，这个命令中的值只能作为参考。</p>
+<p>VIRT: 一个进程在整个虚拟地址空间中可以访问的区域大小。</p>
+<p>RES： 一个进程在RAM中所占的空间大小。包括 私有内存和共享内存。另外如果共享内存被多个进程共享，每个进程的RES都会计算一份在内。</p>
+<p>SHR: 包括所有 file-backed 的内存，以及匿名共享内存。有些File-backed内存是 Private的标志。</p>
+<p>DATA： VIRT中所有私有的匿名内存大小。</p>
+<p>pmap 是另外一个工具，这个工具将一个进程的虚拟地址空间区域展示出来，包括 驻留内存大小，dirty大小，以及文件路径。 与 /proc/$PID/maps 和 /proc/$PID/smaps数据一致。</p>
+<p>pmap $pid</p>
+<p>pmap -x  pid.</p>
+<p>下面这篇文章很好的介绍了各个内存指标的含义和来历。</p>
+<p><a href="https://techtalk.intersec.com/2013/07/memory-part-2-understanding-process-memory/" target="_blank" rel="external">Memory – Part 2: Understanding Process memory</a></p>
+<p>之前介绍的Pss 和 Uss 也是立即进程内存的很好的方式。</p>
+<h2 id="4-内存分配"><a href="#4-内存分配" class="headerlink" title="4. 内存分配"></a>4. 内存分配</h2><p>[TODO]</p>
+<p>参考 intersec 网站上的文章。</p>
+<p>参考：</p>
+<p><a href="https://www.akkadia.org/drepper/cpumemory.pdf" target="_blank" rel="external">What Every Programmer Should Know About Memory</a></p>
+<p><a href="https://pdos.csail.mit.edu/~sbw/links/gorman_book.pdf" target="_blank" rel="external">Understanding the Linux® Virtual Memory Manager</a></p>
+<p><a href="http://shop.oreilly.com/product/9780596005658.do" target="_blank" rel="external">Understanding the Linux Kernel</a></p>
+
+  </section>
+</article>
+
+  <div class="sharing grid">
+  <section class="profile grid-item grid">
+    <!-- <img class="avatar" src="/" alt="avatar" /> -->
+    <div class="grid-item">
+      <p class="title"> Xiaoke's Blog </p>
+      <p class="subtitle"> write more </p>
+    <div>
+  </section>
+
+  <section class="share-btns">
+    <!-- JiaThis Button BEGIN -->
+   <div class="jiathis_style">
+	<a class="jiathis_button_weixin"></a>
+	<a class="jiathis_button_tsina"></a>
+	<a class="jiathis_button_douban"></a>
+	<a class="jiathis_button_fb"></a>
+	<a class="jiathis_button_twitter"></a>
+	<a class="jiathis_button_linkedin"></a>
+	<a class="jiathis_button_googleplus"></a>
+	<a class="jiathis_button_email"></a>
+	<a class="jiathis_button_fav"></a>
+	<a href="http://www.jiathis.com/share" class="jiathis jiathis_txt jtico jtico_jiathis" target="_blank"></a>
+	<a class="jiathis_counter_style"></a>
+  </div>
+  <script type="text/javascript" src="http://v3.jiathis.com/code/jia.js" charset="utf-8"></script>
+  <!-- JiaThis Button END -->
+
+    <!-- <p> share it if you like it~ </p> -->
+    <!-- <a
+  class="twitter-share-button"
+  data-size="large"
+  data-via="xiaoke"
+  href="https://twitter.com/intent/tweet?text= id="1-maps"><a href"
+>
+  Tweet
+</a>
+
+<script>
+  window.twttr = (function(d, s, id) {
+  var js, fjs = d.getElementsByTagName(s)[0],
+    t = window.twttr || {};
+  if (d.getElementById(id)) return t;
+  js = d.createElement(s);
+  js.id = id;
+  js.src = "https://platform.twitter.com/widgets.js";
+  js.async = true;
+  fjs.parentNode.insertBefore(js, fjs);
+
+  t._e = [];
+  t.ready = function(f) {
+    t._e.push(f);
+  };
+
+  return t;
+}(document, "script", "twitter-wjs"));
+</script>
+ -->
+  </section>
+</div>
+
+
+
+  
+    
+<section class="article-comment">
+  <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+  </div>
+</section>
+
+<script>
+  var disqus_shortname = 'rdthinker';
+  
+  var disqus_url = 'http://blog.xiaokezhao.com/2017/11/20/understand-linux-memory-1/';
+  
+  (function(){
+    var dsq = document.createElement('script');
+    dsq.type = 'text/javascript';
+    dsq.async = true;
+    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+
+
+  
+</main>
+
+</body>
+</html>
