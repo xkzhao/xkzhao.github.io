@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>noncopy 与 pthread_conce | Xiaoke&#39;s Blog</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <link rel="shortcut icon" href="/favicon.ico"> 
+  <link rel="stylesheet" href="/css/app.css">
+  <!-- <link rel='stylesheet' href='http://fonts.useso.com/css?family=Source+Code+Pro'> -->
+</head>
+
+<body>
+  <nav class="app-nav">
+  
+      
+        <a class="active" href="/">home</a>
+        
+
+      
+  
+      
+        <a href="/archives">archive</a>
+      
+  
+      
+        <a href="/about/index.html">about</a>
+      
+  
+      
+        <a href="/atom.xml">rss</a>
+      
+  
+</nav>
+
+  <main class="post">
+  <article>
+  <h1 class="article-title">
+    <a href="/2017/11/26/noncopy-pthreadonce/">noncopy 与 pthread_conce</a>
+  </h1>
+
+  <section class="article-meta">
+    <p class="article-date">November 26 2017</p>
+  </section>
+
+  <section class="article-entry">
+    <p>1- boost：:noncopyable ，限制类进行拷贝构造和赋值构造。</p>
+<p>今日粗看Modu代码，发现很多类都继承noncopyable，以下是noncopyable的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">class noncopyable</span><br><span class="line">  &#123;</span><br><span class="line">   protected:</span><br><span class="line">      noncopyable() &#123;&#125;</span><br><span class="line">      ~noncopyable() &#123;&#125;</span><br><span class="line">   private:  // emphasize the following members are private</span><br><span class="line">      noncopyable( const noncopyable&amp; );</span><br><span class="line">      const noncopyable&amp; operator=( const noncopyable&amp; );</span><br><span class="line">  &#125;;</span><br></pre></td></tr></table></figure>
+<p>这里的设计思想是让子类继承，但是阻止子类调用赋值和copy构造函数，有什么用呢？<br>写代码的时候我经常喜欢用singleton模式，比如那些工厂类，管理者类之类的，但是写这些<br>singleton的时候当然是希望全局只有一个，而且不希望别人在用的时候又自己创造一个，往往<br>就要每写一个singleton类就要在类的declaration中把它们的构造函数，赋值函数，析构函数，copy构造函数隐藏到<br>private或者protected之中，这样真的很累。<br>  现在好了，只要让这些singleton直接继承noncopyable就ok了。这样至少可以不用多写赋值和copy构造<br>函数了；构造和析构函数看情况而定了。</p>
+<p>class noncopyable的基本思想是把构造函数和析构函数设置protected权限，这样子类可以调用，但是外面的类不能调用，<br>那么当子类需要定义构造函数的时候不至于通不过编译。但是最关键的是noncopyable把copy构造函数和copy赋值函数做成了<br>private，这就意味着除非子类定义自己的copy构造和赋值函数，否则在子类没有定义的情况下，外面的调用者是不能够通过<br>赋值和copy构造等手段来产生一个新的子类对象的。举个简单的例子：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">class Test ： public noncopyable</span><br><span class="line">&#123;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">void main()</span><br><span class="line">&#123;</span><br><span class="line">   Test a,c;</span><br><span class="line">   Test b(a);  ///&lt;------（1） error</span><br><span class="line"></span><br><span class="line">   c = a;     ///&lt;------(2) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>如果Test类没有继承 noncopyable,那么（1）和（2）都可以通过编译，但是一旦Test继承了noncopyable，则(1)和（2）都通不过<br>编译，从而可以防止调用者写一些错误的代码，这不正是我们做singleton对象所需要的吗？</p>
+<p>2- pthread_once</p>
+<p>Name</p>
+<p>pthread_once - dynamic package initialization</p>
+<p>Synopsis</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">#include &lt;pthread.h&gt;</span><br><span class="line">int pthread_once(pthread_once_t *once_control,</span><br><span class="line">void (*init_routine)(void));</span><br><span class="line">pthread_once_t once_control = PTHREAD_ONCE_INIT;</span><br></pre></td></tr></table></figure>
+<p>Description</p>
+<p>The first call to pthread_once() by any thread in a process, with a given once_control, shall call the init_routine with no arguments. Subsequent calls of pthread_once() with the same once_control shall not call the init_routine. On return from pthread_once(), init_routine shall have completed. The once_control parameter shall determine whether the associated initialization routine has been called.</p>
+<p>The pthread_once() function is not a cancellation point. However, if init_routine is a cancellation point and is canceled, the effect on once_control shall be as if pthread_once() was never called.</p>
+<p>The constant PTHREAD_ONCE_INIT is defined in the <pthread.h> header.</pthread.h></p>
+<p>The behavior of pthread_once() is undefined if once_control has automatic storage duration or is not initialized by PTHREAD_ONCE_INIT.<br>Return Value</p>
+<p>Upon successful completion, pthread_once() shall return zero; otherwise, an error number shall be returned to indicate the error.</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">template&lt;typename T&gt;</span><br><span class="line">class Singleton : boost::noncopyable</span><br><span class="line">&#123;</span><br><span class="line">public:</span><br><span class="line">  static T&amp; instance()</span><br><span class="line">  &#123;</span><br><span class="line">    pthread_once(&amp;ponce_, &amp;Singleton::init);</span><br><span class="line">    assert(value_ != NULL);</span><br><span class="line">    return *value_;</span><br><span class="line">  &#125;</span><br><span class="line">private:</span><br><span class="line">  Singleton();</span><br><span class="line">  ~Singleton();</span><br><span class="line">  static void init()</span><br><span class="line">  &#123;</span><br><span class="line">    value_ = new T();</span><br><span class="line">    if (!detail::has_no_destroy&lt;T&gt;::value)</span><br><span class="line">    &#123;</span><br><span class="line">      ::atexit(destroy);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  static void destroy()</span><br><span class="line">  &#123;</span><br><span class="line">    typedef char T_must_be_complete_type[sizeof(T) == 0 ? -1 : 1];</span><br><span class="line">    T_must_be_complete_type dummy; (void) dummy;</span><br><span class="line"></span><br><span class="line">    delete value_;</span><br><span class="line">    value_ = NULL;</span><br><span class="line">  &#125;</span><br><span class="line">private:</span><br><span class="line">  static pthread_once_t ponce_;</span><br><span class="line">  static T*             value_;</span><br><span class="line">&#125;;</span><br><span class="line">template&lt;typename T&gt;</span><br><span class="line">pthread_once_t Singleton&lt;T&gt;::ponce_ = PTHREAD_ONCE_INIT;</span><br><span class="line">template&lt;typename T&gt;</span><br><span class="line">T* Singleton&lt;T&gt;::value_ = NULL;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+  </section>
+</article>
+
+  <div class="sharing grid">
+  <section class="profile grid-item grid">
+    <!-- <img class="avatar" src="/" alt="avatar" /> -->
+    <div class="grid-item">
+      <p class="title"> Xiaoke's Blog </p>
+      <p class="subtitle"> write more </p>
+    <div>
+  </section>
+
+  <section class="share-btns">
+    <!-- JiaThis Button BEGIN -->
+   <div class="jiathis_style">
+	<a class="jiathis_button_weixin"></a>
+	<a class="jiathis_button_tsina"></a>
+	<a class="jiathis_button_douban"></a>
+	<a class="jiathis_button_fb"></a>
+	<a class="jiathis_button_twitter"></a>
+	<a class="jiathis_button_linkedin"></a>
+	<a class="jiathis_button_googleplus"></a>
+	<a class="jiathis_button_email"></a>
+	<a class="jiathis_button_fav"></a>
+	<a href="http://www.jiathis.com/share" class="jiathis jiathis_txt jtico jtico_jiathis" target="_blank"></a>
+	<a class="jiathis_counter_style"></a>
+  </div>
+  <script type="text/javascript" src="http://v3.jiathis.com/code/jia.js" charset="utf-8"></script>
+  <!-- JiaThis Button END -->
+
+    <!-- <p> share it if you like it~ </p> -->
+    <!-- <a
+  class="twitter-share-button"
+  data-size="large"
+  data-via="xiaoke"
+  href="https://twitter.com/intent/tweet?text=1- boost：:noncopyabl"
+>
+  Tweet
+</a>
+
+<script>
+  window.twttr = (function(d, s, id) {
+  var js, fjs = d.getElementsByTagName(s)[0],
+    t = window.twttr || {};
+  if (d.getElementById(id)) return t;
+  js = d.createElement(s);
+  js.id = id;
+  js.src = "https://platform.twitter.com/widgets.js";
+  js.async = true;
+  fjs.parentNode.insertBefore(js, fjs);
+
+  t._e = [];
+  t.ready = function(f) {
+    t._e.push(f);
+  };
+
+  return t;
+}(document, "script", "twitter-wjs"));
+</script>
+ -->
+  </section>
+</div>
+
+
+
+  
+    
+<section class="article-comment">
+  <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+  </div>
+</section>
+
+<script>
+  var disqus_shortname = 'rdthinker';
+  
+  var disqus_url = 'http://blog.xiaokezhao.com/2017/11/26/noncopy-pthreadonce/';
+  
+  (function(){
+    var dsq = document.createElement('script');
+    dsq.type = 'text/javascript';
+    dsq.async = true;
+    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+
+
+  
+</main>
+
+</body>
+</html>
