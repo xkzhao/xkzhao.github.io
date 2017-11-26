@@ -5,7 +5,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="http://blog.xiaokezhao.com/"/>
-  <updated>2017-11-26T14:50:01.762Z</updated>
+  <updated>2017-11-26T14:53:22.330Z</updated>
   <id>http://blog.xiaokezhao.com/</id>
   
   <author>
@@ -20,13 +20,13 @@
     <link href="http://blog.xiaokezhao.com/2017/11/26/noncopy-pthreadonce/"/>
     <id>http://blog.xiaokezhao.com/2017/11/26/noncopy-pthreadonce/</id>
     <published>2017-11-26T14:49:27.452Z</published>
-    <updated>2017-11-26T14:50:01.762Z</updated>
+    <updated>2017-11-26T14:53:22.330Z</updated>
     
     <content type="html"><![CDATA[<p>1- boost：:noncopyable ，限制类进行拷贝构造和赋值构造。</p>
 <p>今日粗看Modu代码，发现很多类都继承noncopyable，以下是noncopyable的代码：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">class noncopyable</span><br><span class="line">  &#123;</span><br><span class="line">   protected:</span><br><span class="line">      noncopyable() &#123;&#125;</span><br><span class="line">      ~noncopyable() &#123;&#125;</span><br><span class="line">   private:  // emphasize the following members are private</span><br><span class="line">      noncopyable( const noncopyable&amp; );</span><br><span class="line">      const noncopyable&amp; operator=( const noncopyable&amp; );</span><br><span class="line">  &#125;;</span><br></pre></td></tr></table></figure>
-<p>这里的设计思想是让子类继承，但是阻止子类调用赋值和copy构造函数，有什么用呢？<br>写代码的时候我经常喜欢用singleton模式，比如那些工厂类，管理者类之类的，但是写这些<br>singleton的时候当然是希望全局只有一个，而且不希望别人在用的时候又自己创造一个，往往<br>就要每写一个singleton类就要在类的declaration中把它们的构造函数，赋值函数，析构函数，copy构造函数隐藏到<br>private或者protected之中，这样真的很累。<br>  现在好了，只要让这些singleton直接继承noncopyable就ok了。这样至少可以不用多写赋值和copy构造<br>函数了；构造和析构函数看情况而定了。</p>
-<p>class noncopyable的基本思想是把构造函数和析构函数设置protected权限，这样子类可以调用，但是外面的类不能调用，<br>那么当子类需要定义构造函数的时候不至于通不过编译。但是最关键的是noncopyable把copy构造函数和copy赋值函数做成了<br>private，这就意味着除非子类定义自己的copy构造和赋值函数，否则在子类没有定义的情况下，外面的调用者是不能够通过<br>赋值和copy构造等手段来产生一个新的子类对象的。举个简单的例子：</p>
+<p>这里的设计思想是让子类继承，但是阻止子类调用赋值和copy构造函数，有什么用呢？<br>写代码的时候我经常喜欢用singleton模式，比如那些工厂类，管理者类之类的，但是写这些<br>singleton的时候当然是希望全局只有一个，而且不希望别人在用的时候又自己创造一个，往往<br>就要每写一个singleton类就要在类的declaration中把它们的构造函数，赋值函数，析构函数，copy构造函数隐藏到private或者protected之中，这样真的很累。现在好了，只要让这些singleton直接继承noncopyable就ok了。这样至少可以不用多写赋值和copy构造函数了；构造和析构函数看情况而定了。</p>
+<p>class noncopyable的基本思想是把构造函数和析构函数设置protected权限，这样子类可以调用，但是外面的类不能调用，那么当子类需要定义构造函数的时候不至于通不过编译。但是最关键的是noncopyable把copy构造函数和copy赋值函数做成了private，这就意味着除非子类定义自己的copy构造和赋值函数，否则在子类没有定义的情况下，外面的调用者是不能够通过赋值和copy构造等手段来产生一个新的子类对象的。举个简单的例子：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">class Test ： public noncopyable</span><br><span class="line">&#123;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">void main()</span><br><span class="line">&#123;</span><br><span class="line">   Test a,c;</span><br><span class="line">   Test b(a);  ///&lt;------（1） error</span><br><span class="line"></span><br><span class="line">   c = a;     ///&lt;------(2) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <p>如果Test类没有继承 noncopyable,那么（1）和（2）都可以通过编译，但是一旦Test继承了noncopyable，则(1)和（2）都通不过<br>编译，从而可以防止调用者写一些错误的代码，这不正是我们做singleton对象所需要的吗？</p>
 <p>2- pthread_once</p>
