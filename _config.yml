@@ -14,9 +14,9 @@ timezone: America/Toronto
 # jekyll-seo-tag settings › https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
 # ↓ --------------------------
 
-title: Kurt's Tech Blog # the main title
+title: Kurt's Blog # the main title
 
-tagline: Kurt Zhao on building scalable and robust service systems # it will display as the subtitle
+tagline: Kurt Zhao on building scalable, robust and high-performance software systems # it will display as the subtitle
 
 description: >- # used by seo meta and the atom feed
   A blog on building and learning great service systems 
