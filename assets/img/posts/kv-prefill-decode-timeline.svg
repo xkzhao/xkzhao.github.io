@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="430" viewBox="0 0 1120 430" role="img" aria-labelledby="title desc">
+<title id="title">Prefill and decode timeline</title><desc id="desc">The prompt is processed in prefill and produces output token one. Subsequent decode passes take the previous output as input, append one position to the KV cache, and produce the next output. TTFT ends at token one, while later gaps are inter-token latencies.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#94a3b8"/></marker></defs>
+<rect width="1120" height="430" rx="22" fill="#0b1220"/>
+<text x="48" y="54" fill="#f8fafc" font-family="Arial,sans-serif" font-size="27" font-weight="700">One request, two rhythms</text>
+<text x="48" y="83" fill="#94a3b8" font-family="Arial,sans-serif" font-size="16">Conceptual sequence — widths do not represent measured time</text>
+<text x="48" y="132" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" font-weight="700">MODEL WORK</text>
+<rect x="200" y="104" width="324" height="68" rx="13" fill="#0f766e"/><text x="224" y="131" fill="white" font-family="Arial,sans-serif" font-size="19" font-weight="700">PREFILL</text><text x="224" y="154" fill="#ccfbf1" font-family="Arial,sans-serif" font-size="15">all known prompt positions</text>
+<rect x="610" y="104" width="184" height="68" rx="13" fill="#b45309"/><text x="631" y="131" fill="white" font-family="Arial,sans-serif" font-size="19" font-weight="700">DECODE 1</text><text x="631" y="154" fill="#fef3c7" font-family="Arial,sans-serif" font-size="15">input: token 1</text>
+<rect x="862" y="104" width="196" height="68" rx="13" fill="#b45309"/><text x="883" y="131" fill="white" font-family="Arial,sans-serif" font-size="19" font-weight="700">DECODE 2</text><text x="883" y="154" fill="#fef3c7" font-family="Arial,sans-serif" font-size="15">input: token 2</text>
+<path d="M525 138 H602 M795 138 H854" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#arrow)"/>
+<text x="48" y="230" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" font-weight="700">OUTPUT</text>
+<circle cx="524" cy="225" r="8" fill="#2dd4bf"/><circle cx="794" cy="225" r="8" fill="#fbbf24"/><circle cx="1058" cy="225" r="8" fill="#fbbf24"/>
+<text x="470" y="258" fill="#f8fafc" font-family="Arial,sans-serif" font-size="16">token 1</text><text x="741" y="258" fill="#f8fafc" font-family="Arial,sans-serif" font-size="16">token 2</text><text x="1005" y="258" fill="#f8fafc" font-family="Arial,sans-serif" font-size="16">token 3</text>
+<text x="48" y="307" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" font-weight="700">KV STATE</text>
+<rect x="200" y="278" width="324" height="42" rx="8" fill="#134e4a" stroke="#5eead4"/><text x="224" y="305" fill="#ccfbf1" font-family="Arial,sans-serif" font-size="15">prompt K/V written</text>
+<rect x="610" y="278" width="184" height="42" rx="8" fill="#78350f" stroke="#fcd34d"/><text x="627" y="305" fill="#fef3c7" font-family="Arial,sans-serif" font-size="15">+ token 1 K/V</text>
+<rect x="862" y="278" width="196" height="42" rx="8" fill="#78350f" stroke="#fcd34d"/><text x="879" y="305" fill="#fef3c7" font-family="Arial,sans-serif" font-size="15">+ token 2 K/V</text>
+<path d="M200 367 H524" stroke="#2dd4bf" stroke-width="4"/><path d="M524 367 H794 M794 367 H1058" stroke="#fbbf24" stroke-width="4"/>
+<circle cx="200" cy="367" r="5" fill="#2dd4bf"/><circle cx="524" cy="367" r="5" fill="#2dd4bf"/><circle cx="794" cy="367" r="5" fill="#fbbf24"/><circle cx="1058" cy="367" r="5" fill="#fbbf24"/>
+<text x="332" y="397" fill="#99f6e4" font-family="Arial,sans-serif" font-size="16" font-weight="700">TTFT</text><text x="631" y="397" fill="#fde68a" font-family="Arial,sans-serif" font-size="16" font-weight="700">ITL 1</text><text x="900" y="397" fill="#fde68a" font-family="Arial,sans-serif" font-size="16" font-weight="700">ITL 2</text>
+</svg>

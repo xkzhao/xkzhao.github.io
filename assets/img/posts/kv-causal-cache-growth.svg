@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="520" viewBox="0 0 1120 520" role="img" aria-labelledby="title desc"><title id="title">Causal attention and KV cache growth</title><desc id="desc">A seven by seven lower triangular attention matrix: five prompt positions, then two generated positions. Each new query sees earlier key columns but not future keys. The cache grows from five to six to seven key and value positions.</desc><rect width="1120" height="520" rx="22" fill="#0b1220"/><text x="48" y="52" fill="#f8fafc" font-family="Arial,sans-serif" font-size="27" font-weight="700">Causal attention makes old K/V reusable</text><text x="48" y="82" fill="#94a3b8" font-family="Arial,sans-serif" font-size="16">Filled cell = query row may read key column</text><text x="203" y="125" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="16">Key position →</text><text x="48" y="230" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="16">Query position ↓</text>
+<text x="236" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">1</text>
+<text x="283" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">2</text>
+<text x="330" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">3</text>
+<text x="377" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">4</text>
+<text x="424" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">5</text>
+<text x="471" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">6</text>
+<text x="518" y="153" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">7</text>
+<text x="199" y="187" fill="#5eead4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">1</text>
+<rect x="220" y="160" width="41" height="41" rx="5" fill="#0f766e" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="267" y="160" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="314" y="160" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="361" y="160" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="408" y="160" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="455" y="160" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="502" y="160" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="199" y="234" fill="#5eead4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">2</text>
+<rect x="220" y="207" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="267" y="207" width="41" height="41" rx="5" fill="#0f766e" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="314" y="207" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="361" y="207" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="408" y="207" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="455" y="207" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="502" y="207" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="199" y="281" fill="#5eead4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">3</text>
+<rect x="220" y="254" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="267" y="254" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="314" y="254" width="41" height="41" rx="5" fill="#0f766e" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="361" y="254" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="408" y="254" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="455" y="254" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="502" y="254" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="199" y="328" fill="#5eead4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">4</text>
+<rect x="220" y="301" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="267" y="301" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="314" y="301" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="361" y="301" width="41" height="41" rx="5" fill="#0f766e" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="408" y="301" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="455" y="301" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="502" y="301" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="199" y="375" fill="#5eead4" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">5</text>
+<rect x="220" y="348" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="267" y="348" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="314" y="348" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="361" y="348" width="41" height="41" rx="5" fill="#0f766e" stroke="#334155" stroke-width="1"/>
+<rect x="408" y="348" width="41" height="41" rx="5" fill="#0f766e" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="455" y="348" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="502" y="348" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="199" y="422" fill="#fcd34d" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">6</text>
+<rect x="220" y="395" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="267" y="395" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="314" y="395" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="361" y="395" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="408" y="395" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="455" y="395" width="41" height="41" rx="5" fill="#b45309" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="502" y="395" width="41" height="41" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="199" y="469" fill="#fcd34d" font-family="Arial,sans-serif" font-size="15" text-anchor="middle">7</text>
+<rect x="220" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="267" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="314" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="361" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="408" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="455" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#334155" stroke-width="1"/>
+<rect x="502" y="442" width="41" height="41" rx="5" fill="#b45309" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="208" y="153" width="244" height="239" rx="10" fill="none" stroke="#5eead4" stroke-width="2" stroke-dasharray="7 5"/><text x="222" y="501" fill="#99f6e4" font-family="Arial,sans-serif" font-size="15">Prompt prefill: positions 1–5</text><text x="500" y="501" fill="#fde68a" font-family="Arial,sans-serif" font-size="15">Decode: positions 6, 7</text><path d="M600 295 H688" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/><path d="M688 295 L678 288 M688 295 L678 302" stroke="#94a3b8" stroke-width="3"/><text x="724" y="136" fill="#f8fafc" font-family="Arial,sans-serif" font-size="21" font-weight="700">Resident K/V positions</text><text x="724" y="164" fill="#94a3b8" font-family="Arial,sans-serif" font-size="15">At every model layer</text>
+<text x="724" y="198" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15">After prefill</text>
+<rect x="724" y="210" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="767" y="210" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="810" y="210" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="853" y="210" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="896" y="210" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<text x="724" y="266" fill="#94a3b8" font-family="Arial,sans-serif" font-size="14">5 prompt positions</text>
+<text x="724" y="288" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15">After decode 1</text>
+<rect x="724" y="300" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="767" y="300" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="810" y="300" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="853" y="300" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="896" y="300" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="939" y="300" width="37" height="35" rx="5" fill="#b45309" stroke="#fcd34d"/>
+<text x="724" y="356" fill="#94a3b8" font-family="Arial,sans-serif" font-size="14">+ output token 1</text>
+<text x="724" y="378" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15">After decode 2</text>
+<rect x="724" y="390" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="767" y="390" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="810" y="390" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="853" y="390" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="896" y="390" width="37" height="35" rx="5" fill="#0f766e" stroke="#5eead4"/>
+<rect x="939" y="390" width="37" height="35" rx="5" fill="#b45309" stroke="#fcd34d"/>
+<rect x="982" y="390" width="37" height="35" rx="5" fill="#b45309" stroke="#fcd34d"/>
+<text x="724" y="446" fill="#94a3b8" font-family="Arial,sans-serif" font-size="14">+ output token 2</text>
+</svg>

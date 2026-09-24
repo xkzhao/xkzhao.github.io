@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="540" viewBox="0 0 1120 540" role="img" aria-labelledby="title desc"><title id="title">Analytical KV memory scaling</title><desc id="desc">Line chart of logical BF16 KV payload for Llama 3.1 70B from zero to 32768 cached positions. With one sequence it reaches 10 GiB, with four reaches 40 GiB, and with sixteen reaches 160 GiB. An illustrative 40 GiB KV budget is marked.</desc><rect width="1120" height="540" rx="22" fill="#0b1220"/><text x="48" y="52" fill="#f8fafc" font-family="Arial,sans-serif" font-size="27" font-weight="700">KV memory grows with live tokens × sequences</text><text x="48" y="80" fill="#94a3b8" font-family="Arial,sans-serif" font-size="16">Llama 3.1 70B · BF16 KV · 320 KiB / cached token · logical payload across model</text><text x="65" y="105" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="15">GiB</text>
+<line x1="160" y1="430" x2="820" y2="430" stroke="#334155" stroke-width="1"/><text x="140" y="435" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="end">0</text>
+<line x1="160" y1="352.5" x2="820" y2="352.5" stroke="#334155" stroke-width="1"/><text x="140" y="357.5" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="end">40</text>
+<line x1="160" y1="275" x2="820" y2="275" stroke="#334155" stroke-width="1"/><text x="140" y="280" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="end">80</text>
+<line x1="160" y1="197.5" x2="820" y2="197.5" stroke="#334155" stroke-width="1"/><text x="140" y="202.5" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="end">120</text>
+<line x1="160" y1="120" x2="820" y2="120" stroke="#334155" stroke-width="1"/><text x="140" y="125" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="end">160</text>
+<line x1="160" y1="120" x2="160" y2="430" stroke="#334155" stroke-width="1"/><text x="160" y="454" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">0</text>
+<line x1="325" y1="120" x2="325" y2="430" stroke="#334155" stroke-width="1"/><text x="325" y="454" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">8K</text>
+<line x1="490" y1="120" x2="490" y2="430" stroke="#334155" stroke-width="1"/><text x="490" y="454" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">16K</text>
+<line x1="655" y1="120" x2="655" y2="430" stroke="#334155" stroke-width="1"/><text x="655" y="454" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">24K</text>
+<line x1="820" y1="120" x2="820" y2="430" stroke="#334155" stroke-width="1"/><text x="820" y="454" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">32K</text>
+<line x1="160" y1="352.5" x2="820" y2="352.5" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="8 6"/><text x="883" y="391" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="14">Dashed line: illustrative</text><text x="883" y="412" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="14">40 GiB KV budget</text>
+<polyline points="160,430 325,425.15625 490,420.3125 655,415.46875 820,410.625" fill="none" stroke="#2dd4bf" stroke-width="4" stroke-linejoin="round"/>
+<circle cx="325" cy="425.15625" r="5" fill="#2dd4bf"/>
+<circle cx="820" cy="410.625" r="5" fill="#2dd4bf"/>
+<polyline points="160,430 325,410.625 490,391.25 655,371.875 820,352.5" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linejoin="round"/>
+<circle cx="325" cy="410.625" r="5" fill="#60a5fa"/>
+<circle cx="820" cy="352.5" r="5" fill="#60a5fa"/>
+<polyline points="160,430 325,352.5 490,275 655,197.5 820,120" fill="none" stroke="#fbbf24" stroke-width="4" stroke-linejoin="round"/>
+<circle cx="325" cy="352.5" r="5" fill="#fbbf24"/>
+<circle cx="820" cy="120" r="5" fill="#fbbf24"/>
+<text x="166" y="494" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="16">Cached positions per sequence</text><rect x="883" y="141" width="190" height="140" rx="12" fill="#172338" stroke="#334155"/><text x="903" y="170" fill="#f8fafc" font-family="Arial,sans-serif" font-size="16" font-weight="700">Active sequences</text>
+<line x1="904" y1="198" x2="935" y2="198" stroke="#2dd4bf" stroke-width="4"/><text x="946" y="203" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="15">1 sequence</text>
+<line x1="904" y1="229" x2="935" y2="229" stroke="#60a5fa" stroke-width="4"/><text x="946" y="234" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="15">4 sequences</text>
+<line x1="904" y1="260" x2="935" y2="260" stroke="#fbbf24" stroke-width="4"/><text x="946" y="265" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="15">16 sequences</text>
+<text x="883" y="321" fill="#fbbf24" font-family="Arial,sans-serif" font-size="15">16 × 8K = 40 GiB</text><text x="883" y="345" fill="#94a3b8" font-family="Arial,sans-serif" font-size="13">Before allocator overhead</text></svg>
