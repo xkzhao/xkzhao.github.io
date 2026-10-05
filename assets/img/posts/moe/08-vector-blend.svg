@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">Blend two expert outputs into one vector</title>
+  <desc id="desc">Invented two-dimensional example. E2 outputs the vector (2, 0), E3 outputs (0, 4). Their weights are 12/17 and 5/17. The combined vector is (24/17, 20/17), approximately (1.412, 1.176). Dashed arrows show the scaled contributions added head to tail. A dotted line connects the two original outputs; the combined endpoint lies on that line.</desc>
+  <defs>
+    <marker id="blue" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#65bdff"/></marker>
+    <marker id="orange" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#ffca70"/></marker>
+    <marker id="green" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#64dfb7"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #ecf1f9; }
+      .muted { fill: #b5c4d8; }
+      .blue { fill: #65bdff; }
+      .orange { fill: #ffca70; }
+      .green { fill: #64dfb7; }
+    </style>
+  </defs>
+  <rect width="1200" height="660" rx="18" fill="#0b1321"/>
+  <text x="42" y="58" font-size="32" font-weight="bold">Blend two expert outputs into one vector</text>
+  <text x="42" y="93" font-size="20" class="muted">Invented 2D example. Scale each output by its router weight, then add.</text>
+  <g stroke="#243449" stroke-width="1">
+    <path d="M150 130V540 M250 130V540 M350 130V540 M450 130V540 M550 130V540"/>
+    <path d="M100 520H570 M100 420H570 M100 320H570 M100 220H570 M100 120H570"/>
+  </g>
+  <path d="M100 520H585 M150 555V115" stroke="#8d9bb0" stroke-width="2" fill="none"/>
+  <g font-size="18" class="muted">
+    <text x="131" y="549">0</text><text x="243" y="549">1</text><text x="343" y="549">2</text><text x="443" y="549">3</text>
+    <text x="119" y="426">1</text><text x="119" y="326">2</text><text x="119" y="226">3</text><text x="119" y="126">4</text>
+  </g>
+  <path d="M150 120L350 520" stroke="#879bb2" stroke-width="2" stroke-dasharray="3 7" fill="none"/>
+  <path d="M150 520L343 520" stroke="#65bdff" stroke-width="4" marker-end="url(#blue)"/>
+  <path d="M150 520L150 132" stroke="#ffca70" stroke-width="4" marker-end="url(#orange)"/>
+  <path d="M150 520L291.176 520L291.176 402.353" stroke="#d4deed" stroke-width="3" stroke-dasharray="7 6" fill="none"/>
+  <path d="M150 520L291.176 402.353" stroke="#64dfb7" stroke-width="5" marker-end="url(#green)"/>
+  <circle cx="291.176" cy="402.353" r="6" fill="#64dfb7"/>
+  <text x="170" y="145" font-size="23" class="orange">E3(x) = [0, 4]</text>
+  <text x="362" y="509" font-size="23" class="blue">E2(x) = [2, 0]</text>
+  <text x="309" y="379" font-size="23" class="green">y ≈ [1.412, 1.176]</text>
+  <rect x="640" y="155" width="515" height="355" rx="18" fill="#152438" stroke="#344861"/>
+  <text x="670" y="198" font-size="24" font-weight="bold">Scale, then add</text>
+  <text x="670" y="246" font-size="23" class="blue">(12/17) × [2, 0] = [1.412…, 0]</text>
+  <text x="670" y="293" font-size="23" class="orange">(5/17) × [0, 4] = [0, 1.176…]</text>
+  <path d="M670 315H1125" stroke="#344861" stroke-width="2"/>
+  <text x="670" y="357" font-size="25" font-weight="bold" class="green">y = [24/17, 20/17]</text>
+  <text x="670" y="412" font-size="20" class="muted">The dashed path adds the contributions.</text>
+  <text x="670" y="449" font-size="20" class="muted">The green arrow is the combined output.</text>
+  <text x="670" y="484" font-size="20" class="muted">Both experts return vectors, not text.</text>
+  <text x="42" y="600" font-size="20" class="muted">Weights sum to one here: the combined endpoint lies between the original endpoints.</text>
+  <text x="42" y="630" font-size="18" class="muted">Real hidden vectors have many more coordinates. Other routing rules can use different normalization.</text>
+</svg>
