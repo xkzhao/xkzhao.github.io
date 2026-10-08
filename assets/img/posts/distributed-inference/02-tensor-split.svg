@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="570" viewBox="0 0 800 570" role="img" aria-labelledby="title desc">
+<title id="title">Tensor parallelism: a column split</title><desc id="desc">Both GPUs receive x equals 2,3. GPU 0 owns columns 0 and 1 of W and produces 2,3. GPU 1 owns columns 2 and 3 and produces 5,7. The conceptual output is 2,3,5,7.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#50647c"/></marker></defs>
+<rect width="800" height="570" rx="18" fill="#f8fafc"/>
+<text x="32" y="45" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" text-anchor="start">TP: split one matrix multiplication</text>
+<text x="400" y="105" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" text-anchor="middle">input x = [2, 3]</text>
+<path d="M400 120 L400 148 L209 148 L209 185" stroke="#50647c" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<path d="M400 148 L591 148 L591 185" stroke="#50647c" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="32" y="195" width="354" height="260" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="209" y="232" fill="#2563eb" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" text-anchor="middle">GPU 0</text>
+<text x="209" y="267" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="middle">Owns W’s columns 0–1</text>
+<text x="209" y="310" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" text-anchor="middle">[1  0]</text>
+<text x="209" y="340" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" text-anchor="middle">[0  1]</text>
+<text x="209" y="385" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="middle">Multiply by x locally</text>
+<text x="209" y="426" fill="#2563eb" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">output slice = [2, 3]</text>
+<rect x="414" y="195" width="354" height="260" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="591" y="232" fill="#2563eb" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" text-anchor="middle">GPU 1</text>
+<text x="591" y="267" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="middle">Owns W’s columns 2–3</text>
+<text x="591" y="310" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" text-anchor="middle">[1  2]</text>
+<text x="591" y="340" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" text-anchor="middle">[1  1]</text>
+<text x="591" y="385" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="middle">Multiply by x locally</text>
+<text x="591" y="426" fill="#2563eb" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">output slice = [5, 7]</text>
+<text x="400" y="505" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" text-anchor="middle">Together: y = [2, 3 | 5, 7]</text>
+<text x="400" y="542" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" text-anchor="middle">The slices may remain distributed for the next operation.</text>
+</svg>

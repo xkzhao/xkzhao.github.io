@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="435" viewBox="0 0 800 435" role="img" aria-labelledby="title desc">
+<title id="title">Pipeline schedule with three stages and four input groups</title><desc id="desc">Each stage takes 10 milliseconds. Input groups A, B, C, D enter on successive slots. A completes at 30 milliseconds and D completes at 60 milliseconds. Blank cells indicate idle stages.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#50647c"/></marker></defs>
+<rect width="800" height="435" rx="18" fill="#f8fafc"/>
+<text x="32" y="44" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" text-anchor="start">PP: overlap different input groups</text>
+<text x="32" y="78" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="start">Three stages · 10 ms per stage · transfer time omitted</text>
+<text x="201" y="121" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" text-anchor="middle">0–10</text>
+<text x="300" y="121" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" text-anchor="middle">10–20</text>
+<text x="399" y="121" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" text-anchor="middle">20–30</text>
+<text x="498" y="121" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" text-anchor="middle">30–40</text>
+<text x="597" y="121" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" text-anchor="middle">40–50</text>
+<text x="696" y="121" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" text-anchor="middle">50–60</text>
+<text x="30" y="171" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="start">Stage 1</text>
+<rect x="155" y="139" width="91" height="49" rx="6" fill="#dbeafe" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="200" y="171" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">A</text>
+<rect x="254" y="139" width="91" height="49" rx="6" fill="#ccfbf1" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="299" y="171" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">B</text>
+<rect x="353" y="139" width="91" height="49" rx="6" fill="#ede9fe" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="398" y="171" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">C</text>
+<rect x="452" y="139" width="91" height="49" rx="6" fill="#fef3c7" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="497" y="171" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">D</text>
+<rect x="551" y="139" width="91" height="49" rx="6" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="650" y="139" width="91" height="49" rx="6" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="30" y="229" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="start">Stage 2</text>
+<rect x="155" y="197" width="91" height="49" rx="6" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="254" y="197" width="91" height="49" rx="6" fill="#dbeafe" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="299" y="229" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">A</text>
+<rect x="353" y="197" width="91" height="49" rx="6" fill="#ccfbf1" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="398" y="229" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">B</text>
+<rect x="452" y="197" width="91" height="49" rx="6" fill="#ede9fe" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="497" y="229" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">C</text>
+<rect x="551" y="197" width="91" height="49" rx="6" fill="#fef3c7" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="596" y="229" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">D</text>
+<rect x="650" y="197" width="91" height="49" rx="6" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="30" y="287" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="start">Stage 3</text>
+<rect x="155" y="255" width="91" height="49" rx="6" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="254" y="255" width="91" height="49" rx="6" fill="#e9edf3" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="353" y="255" width="91" height="49" rx="6" fill="#dbeafe" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="398" y="287" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">A</text>
+<rect x="452" y="255" width="91" height="49" rx="6" fill="#ccfbf1" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="497" y="287" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">B</text>
+<rect x="551" y="255" width="91" height="49" rx="6" fill="#ede9fe" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="596" y="287" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">C</text>
+<rect x="650" y="255" width="91" height="49" rx="6" fill="#fef3c7" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="695" y="287" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">D</text>
+<text x="32" y="348" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" text-anchor="start">A completes at 30 ms. D completes at 60 ms.</text>
+<text x="32" y="382" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" text-anchor="start">A takes 30 ms; filled-pipeline completions are 10 ms apart.</text>
+<text x="32" y="412" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" text-anchor="start">Blank cells: pipeline bubbles. A–D: independent input groups.</text>
+</svg>

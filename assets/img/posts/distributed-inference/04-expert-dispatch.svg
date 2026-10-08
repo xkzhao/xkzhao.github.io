@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="610" viewBox="0 0 800 610" role="img" aria-labelledby="title desc">
+<title id="title">Expert parallelism: dispatch and return</title><desc id="desc">GPU 0 owns expert E0 and starts with vector x. Router selects E0 and E2. GPU 0 computes E0 locally, sends x to GPU 2 for E2, receives the remote output, and combines 0.7 E0 of x plus 0.3 E2 of x.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#50647c"/></marker></defs>
+<rect width="800" height="610" rx="18" fill="#f8fafc"/>
+<text x="32" y="44" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" text-anchor="start">EP: move vectors to selected experts</text>
+<text x="32" y="80" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="start">One token A · top-2 routing · E0 and E2 selected</text>
+<rect x="32" y="110" width="354" height="360" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+<rect x="414" y="110" width="354" height="360" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="209" y="147" fill="#7c3aed" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">GPU 0 owns E0</text>
+<text x="591" y="147" fill="#7c3aed" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" text-anchor="middle">GPU 2 owns E2</text>
+<text x="209" y="192" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="middle">x → router selects E0, E2</text>
+<rect x="72" y="221" width="274" height="58" rx="10" fill="#fff" stroke="#d6dfeb" stroke-width="1.5"/>
+<text x="209" y="257" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="middle">compute E0(x) locally</text>
+<rect x="454" y="221" width="274" height="58" rx="10" fill="#fff" stroke="#d6dfeb" stroke-width="1.5"/>
+<text x="591" y="257" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="middle">compute E2(x)</text>
+<path d="M346 205 L455 205 L455 221" stroke="#50647c" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="400" y="189" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" text-anchor="middle">send x</text>
+<path d="M591 287 L591 326 L366 326 L366 388 L356 388" stroke="#50647c" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="502" y="315" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" text-anchor="middle">return E2(x)</text>
+<path d="M209 287 L209 333" stroke="#50647c" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="62" y="343" width="294" height="91" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="209" y="377" fill="#7c3aed" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="middle">combine on GPU 0</text>
+<text x="209" y="410" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="middle">0.7 E0(x) + 0.3 E2(x)</text>
+<path d="M209 441 L209 493" stroke="#50647c" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="209" y="526" fill="#172b4d" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700" text-anchor="middle">one vector continues</text>
+<text x="32" y="575" fill="#50647c" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" text-anchor="start">Expert weights stay in place. Only activations and results move.</text>
+</svg>
