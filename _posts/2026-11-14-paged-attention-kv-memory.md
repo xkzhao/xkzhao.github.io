@@ -13,7 +13,7 @@ The memory is not missing. It is reserved for tokens that do not exist yet, and 
 
 The [batching article]({% post_url 2026-11-05-llm-inference-batching %}) ended on this problem. Continuous batching pays off only if you keep enough sequences resident, and every resident sequence holds its KV cache on the GPU until it finishes. The scheduler must decide whether a request fits before it admits the request, and it does not know how long the answer will be.
 
-The fix is an allocator, and it borrows its design from virtual memory. The vLLM details here come from the source at commit `640c349` rather than from the [PagedAttention paper][paged], which is from 2023 and no longer matches the code in three places.
+The fix is an allocator, and it borrows its design from virtual memory. The vLLM details here come from the source rather than from the [PagedAttention paper][paged], which is from 2023 and no longer matches the code in three places.
 
 ## One slab per request wastes most of the memory
 
@@ -382,7 +382,7 @@ Next in this series: prefix caching, and what it costs to keep blocks around aft
 ## References
 
 - Kwon et al., *Efficient Memory Management for Large Language Model Serving with PagedAttention*, SOSP 2023. [arXiv][paged]
-- vLLM source at commit `640c349`, in `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/sched/scheduler.py`.
+- vLLM source, in `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/sched/scheduler.py`.
 - [vLLM PagedAttention kernel design][vllmkernel] and the [vLLM architecture walkthrough][vllmarch]
 - [NVIDIA TensorRT-LLM KV cache management][trtllm], a different block manager for the same problem
 - Prabhu et al., *vAttention*, which keeps contiguous virtual addressing and pages the physical memory underneath. [arXiv][vattn]
