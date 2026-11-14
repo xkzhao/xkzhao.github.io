@@ -66,8 +66,6 @@ That picture has three problems.
 
 A request allowed 8,192 tokens reserves 2.5 GiB. If it produces 2,048 tokens, it uses 0.625 GiB. The other 1.875 GiB stays reserved and untouched. Across 100 concurrent requests that is 187.5 GiB of KV capacity that nobody can use.
 
-The dashboard counts the tokens that exist. The admission controller counts the reservations.
-
 ## Virtual memory already solved this
 
 The sequence does not need a lot of memory. It needs memory it does not have yet, in one piece, at an address that cannot move. Operating systems had the same problem in the 1960s.
