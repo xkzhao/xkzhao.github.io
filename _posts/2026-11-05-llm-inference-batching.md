@@ -122,13 +122,13 @@ Two limits show up as the batch grows.
 
 ## Static batching and its waste
 
-The simplest way to batch: collect N requests, run them together, return the results when the batch is done.
+The simplest way to batch is to collect N requests and keep that group fixed until all of them finish. This is static batching.
 
-The catch hides in "when the batch is done." A batch finishes when its **longest** sequence finishes, and output lengths vary enormously, from a one-line answer to a multi-page essay, with no way to know in advance which one you are getting.
+A batch finishes when its **longest** sequence finishes. Output lengths vary from a one-line answer to a multi-page essay, with no way to know the exact length in advance.
 
 Say one request in the batch needs 20 tokens and another needs 2,000. The short one finishes at step 20, and its slot then sits empty for 1,980 steps. Meanwhile new requests wait in the queue, because the batch is not done.
 
-If you think of the batch as a set of parallel workers, static batching is a **bulk-synchronous job with a barrier**: nobody moves on until the slowest worker arrives.
+The [Orca paper, Section 3][orca-paper], describes this as request-level scheduling. The engine receives a batch and runs its generation loop until the batch finishes. New requests wait outside that loop. A server might stream tokens to clients during execution, but streaming alone does not let a waiting request join the batch.
 
 <svg viewBox="0 0 720 230" role="img" aria-label="Static batching timeline: four slots, requests A to D, with slots idle until the longest request finishes at the barrier" style="width:100%;height:auto;max-width:720px;">
   <text x="0" y="22" font-size="13" font-weight="600" fill="currentColor">Static batching — 8 requests, 4 slots</text>
@@ -159,14 +159,51 @@ If you think of the batch as a set of parallel workers, static batching is a **b
 
 ## Continuous batching
 
-The fix is to stop treating the batch as a fixed unit. Instead, the scheduler decides batch membership **every step**:
+The fix is to let the scheduler choose batch membership for each GPU iteration. This is **continuous batching**, also called iteration-level scheduling. The [Orca paper][orca] introduced this scheduling approach at OSDI 2022.
 
-- When a sequence emits its end token, it leaves the batch immediately.
-- On the next step, a waiting request takes the free slot.
+A request and an iteration are different units. A request lasts until its answer is complete. It usually needs many GPU iterations. During ordinary decode, one iteration processes the latest token of each selected request and produces its next token.
 
-This is **continuous batching**, also called iteration-level scheduling. It was introduced in the Orca paper at OSDI 2022 ([Yu et al.][orca]) and is now standard in serving engines such as vLLM.
+**A new request can join between GPU iterations while earlier requests are still generating.** Nobody has to finish first if there is capacity. The scheduler prepares a new batch for a later iteration. It does not insert work into a GPU kernel that is already running.
 
-In systems terms, the barrier becomes a **work queue**: each worker grabs the next task the moment it is free.
+### A new request joins before anyone finishes
+
+Suppose the server allows up to three active requests. A and B are already decoding. C arrives during iteration 1. There is enough KV memory and token budget for C, so the scheduler admits it for iteration 2.
+
+Iteration 2 processes A's next decode token, B's next decode token, and C's prompt. A and B are still generating their answers. C has joined without replacing either of them.
+
+<div role="region" aria-label="Scrollable example of new requests joining between iterations" tabindex="0" style="overflow-x:auto;">
+<svg viewBox="0 0 640 318" role="img" aria-label="Three request places across four iterations. A and B keep decoding. C uses the empty third place in iteration 2 before anyone finishes. B finishes in iteration 3, and D uses its place in iteration 4" style="width:100%;min-width:560px;height:auto;max-width:720px;">
+  <text x="0" y="22" font-size="16" font-weight="600" fill="currentColor">C joins before anyone finishes</text>
+  <text x="145" y="54" font-size="14" fill="currentColor" text-anchor="middle">iteration 1</text>
+  <text x="275" y="54" font-size="14" fill="currentColor" text-anchor="middle">iteration 2</text>
+  <text x="405" y="54" font-size="14" fill="currentColor" text-anchor="middle">iteration 3</text>
+  <text x="535" y="54" font-size="14" fill="currentColor" text-anchor="middle">iteration 4</text>
+  <text x="0" y="98" font-size="14" fill="currentColor">place 1</text>
+  <rect x="86" y="72" width="118" height="42" rx="4" fill="#3b82f6"/><text x="145" y="98" font-size="14" fill="#ffffff" text-anchor="middle">A decode</text>
+  <rect x="216" y="72" width="118" height="42" rx="4" fill="#3b82f6"/><text x="275" y="98" font-size="14" fill="#ffffff" text-anchor="middle">A decode</text>
+  <rect x="346" y="72" width="118" height="42" rx="4" fill="#3b82f6"/><text x="405" y="98" font-size="14" fill="#ffffff" text-anchor="middle">A decode</text>
+  <rect x="476" y="72" width="118" height="42" rx="4" fill="#3b82f6"/><text x="535" y="98" font-size="14" fill="#ffffff" text-anchor="middle">A decode</text>
+  <text x="0" y="150" font-size="14" fill="currentColor">place 2</text>
+  <rect x="86" y="124" width="118" height="42" rx="4" fill="#6366f1"/><text x="145" y="150" font-size="14" fill="#ffffff" text-anchor="middle">B decode</text>
+  <rect x="216" y="124" width="118" height="42" rx="4" fill="#6366f1"/><text x="275" y="150" font-size="14" fill="#ffffff" text-anchor="middle">B decode</text>
+  <rect x="346" y="124" width="118" height="42" rx="4" fill="#6366f1"/><text x="405" y="150" font-size="14" fill="#ffffff" text-anchor="middle">B finishes</text>
+  <rect x="476" y="124" width="118" height="42" rx="4" fill="#f59e0b"/><text x="535" y="150" font-size="14" fill="#ffffff" text-anchor="middle">D prefill</text>
+  <text x="0" y="202" font-size="14" fill="currentColor">place 3</text>
+  <rect x="86" y="176" width="118" height="42" rx="4" fill="currentColor" opacity="0.08"/><text x="145" y="202" font-size="14" fill="currentColor" text-anchor="middle">empty</text>
+  <rect x="216" y="176" width="118" height="42" rx="4" fill="#10b981"/><text x="275" y="202" font-size="14" fill="#ffffff" text-anchor="middle">C prefill</text>
+  <rect x="346" y="176" width="118" height="42" rx="4" fill="#10b981"/><text x="405" y="202" font-size="14" fill="#ffffff" text-anchor="middle">C decode</text>
+  <rect x="476" y="176" width="118" height="42" rx="4" fill="#10b981"/><text x="535" y="202" font-size="14" fill="#ffffff" text-anchor="middle">C decode</text>
+  <text x="0" y="253" font-size="14" fill="currentColor">C uses spare capacity in iteration 2.</text>
+  <text x="0" y="279" font-size="14" fill="currentColor">D uses capacity freed by B in iteration 4.</text>
+  <text x="0" y="308" font-size="12" fill="currentColor" opacity="0.65">Each column is an iteration, not equal elapsed time. Scroll sideways on phones.</text>
+</svg>
+</div>
+
+Now D arrives during iteration 2. All three places are occupied, so D waits. B finishes in iteration 3 when its generation reaches a stopping condition. D can join iteration 4 while A and C continue decoding.
+
+Both admissions are continuous batching. C uses capacity that was already free. D uses capacity that a completed request releases. This example assumes short prompts that each fit in one iteration, enough KV memory, and no preemption.
+
+The next diagram shows the second case at a larger scale. It starts with a full batch, so each new request replaces one that has finished.
 
 <svg viewBox="0 0 720 220" role="img" aria-label="Continuous batching timeline: the same eight requests finish in 11 steps because free slots are refilled immediately" style="width:100%;height:auto;max-width:720px;">
   <text x="0" y="22" font-size="13" font-weight="600" fill="currentColor">Continuous batching — the same 8 requests, the same 4 slots</text>
@@ -190,7 +227,31 @@ In systems terms, the barrier becomes a **work queue**: each worker grabs the ne
   <text x="0" y="208" font-size="12" fill="currentColor" opacity="0.8">11 steps instead of 14. The only idle time left is the tail, when nothing is waiting.</text>
 </svg>
 
-**Where this analogy breaks.** Workers pulling from a queue are interchangeable. Batch slots are not. A sequence with a long prompt and a long conversation carries a far larger KV cache than a short one. So "is there a free slot?" is not really a slot-count question. It is a memory-allocation question: is there room for *this* request's KV cache, now and as it grows?
+The places in these diagrams are a way to count active requests. They are not permanent GPU workers. Admission also needs a share of the iteration's token budget and enough KV memory. A long conversation can need much more KV than a short one, so a free place alone does not guarantee that a request fits.
+
+### Why A can continue while C joins
+
+A's next token depends on A's earlier tokens. It has no dependency on whether B or C has finished. Each request keeps its own token history and KV state.
+
+The engine can therefore prepare one iteration containing requests at different positions. A might be generating its 50th answer token while B generates its fifth and C processes its prompt. The attention metadata keeps their contexts separate.
+
+The [vLLM engine walkthrough][vllm-anatomy] shows how this works. The engine schedules work for an iteration, runs the model, then updates each request's state. The runner packs the selected token inputs together and uses each request's positions and KV block table to read its context. Changing the next iteration's membership does not require starting A's generation again.
+
+In the [vLLM V1 scheduler used in article #8][vllm-admission], running requests receive work first. The scheduler then considers waiting requests if the active-request limit, token budget, and KV allocation allow it. That admission path does not require a running request to finish first. Scheduling policy can still delay a request, so being eligible to join is not a promise of immediate admission.
+
+### Which methods wait for a request to finish?
+
+Yes, serving can work that way. The condition depends on how requests are scheduled:
+
+| Serving method | When a waiting request can start on that engine |
+|---|---|
+| One request at a time | After the current request finishes. |
+| Static batching | After every request in the current batch finishes. |
+| Continuous batching | At an iteration boundary when capacity and scheduling policy allow it. |
+
+At a full continuous-batching server, a completion often creates the capacity a waiting request needs. That is the D example above. It is still continuous batching, not a separate algorithm that always requires a completion.
+
+There is also a naming trap. [Triton's dynamic batcher][triton-batching] groups queued requests before sending a batch to an available model instance. Its documented purpose is batching stateless model calls. Forming batches dynamically does not, by itself, mean that an engine can add requests between the decode iterations of an ongoing generation. Orca's contribution is to make that iteration boundary available to the scheduler.
 
 ## What the difference looks like at scale
 
@@ -216,7 +277,7 @@ This model deliberately ignores two things: the cost of processing prompts, and 
 
 Before a new request can generate anything, it has to process its whole prompt. This phase is **prefill**. Unlike decode, prefill handles all the prompt's tokens at once, so it is compute-heavy rather than memory-bound.
 
-With continuous batching, a new request joins mid-flight, inside the same step as everyone else's decode. If it brings a long prompt, that one step takes far longer, and every request already running waits for it. Users see it as a stall in the middle of a stream of tokens.
+With continuous batching, the scheduler can admit a new request for a later iteration while earlier requests are still generating. In a mixed prefill-and-decode iteration, the new prompt shares the iteration with their decode work. Processing a whole long prompt can make that iteration take much longer. Users see the delay as a stall in the middle of a stream of tokens.
 
 <svg viewBox="0 0 720 240" role="img" aria-label="Without chunking one step balloons to absorb a long prompt; chunked prefill spreads the prompt across several steps of similar size" style="width:100%;height:auto;max-width:720px;">
   <text x="0" y="20" font-size="12.5" font-weight="600" fill="currentColor">One long prompt joins the batch</text>
@@ -247,7 +308,7 @@ With continuous batching, a new request joins mid-flight, inside the same step a
   <text x="110" y="222" font-size="11.5" fill="currentColor" opacity="0.8">The cost: the new request waits a little longer for its own first token.</text>
 </svg>
 
-Sarathi-Serve ([Agrawal et al., OSDI 2024][sarathi]) is a well-known treatment of this tradeoff. A heavier alternative runs prefill and decode on separate GPUs entirely.
+Sarathi-Serve ([Agrawal et al., OSDI 2024][sarathi]) combines prefill chunks with ongoing decodes to control this tradeoff. [Article #8 on chunked prefill]({% post_url 2026-11-14-chunked-prefill %}) works through the token budget and vLLM implementation. A heavier alternative runs prefill and decode on separate GPUs entirely.
 
 ### Reserving memory you do not know you will need
 
@@ -287,14 +348,25 @@ This is the problem **PagedAttention** ([Kwon et al., SOSP 2023][paged]) attacks
 - Decode is memory-bound, so batching gets more tokens out of the same weight reads.
 - The batch cannot grow forever: compute eventually catches up, and KV cache memory usually runs out first.
 - Static batching wastes slots because output lengths vary and the batch waits for its slowest member.
-- Continuous batching re-forms the batch every step. That recovers the waste, and introduces prefill stalls and a memory-reservation problem.
+- Continuous batching chooses membership for each GPU iteration. A new request can join while earlier requests are still generating if capacity and scheduling policy allow it.
+- Replacing a finished request is one case of continuous batching. Using spare capacity before anyone finishes is another.
+- Keeping KV across iterations lets each request continue at its own position. Mixing new prefill work with decode can cause stalls, and admitting requests still needs enough memory.
 
 ## References
 
 - Yu et al., *Orca: A Distributed Serving System for Transformer-Based Generative Models*, OSDI 2022. [USENIX page][orca]
 - Kwon et al., *Efficient Memory Management for Large Language Model Serving with PagedAttention*, SOSP 2023. [arXiv][paged]
 - Agrawal et al., *Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve*, OSDI 2024. [USENIX page][sarathi]
+- Gordic, *Inside vLLM: Anatomy of a High-Throughput LLM Inference System*, September 2025. [vLLM blog][vllm-anatomy]
+- [vLLM launch article][vllm-launch], for the KV memory problem behind larger active batches
+- [vLLM V1 scheduler admission path][vllm-admission], pinned to the same revision as article #8
+- [NVIDIA Triton batcher documentation][triton-batching], for the distinction between dynamic batch formation and iteration-level scheduling
 
 [orca]: https://www.usenix.org/conference/osdi22/presentation/yu
+[orca-paper]: https://www.usenix.org/system/files/osdi22-yu.pdf
 [paged]: https://arxiv.org/abs/2309.06180
 [sarathi]: https://www.usenix.org/conference/osdi24/presentation/agrawal
+[vllm-anatomy]: https://vllm.ai/blog/2025-09-05-anatomy-of-vllm
+[vllm-launch]: https://vllm.ai/blog/2023-06-20-vllm
+[vllm-admission]: https://github.com/vllm-project/vllm/blob/a16bfee11b92f1809628a8bd1f4bd70cdcb9b576/vllm/v1/core/sched/scheduler.py#L1061
+[triton-batching]: https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html#dynamic-batcher
