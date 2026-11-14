@@ -97,7 +97,7 @@ Reuse needs a lookup key. A request arrives, the runtime cuts the prompt into 64
 
 The obvious key is a hash of the block's 64 token IDs. That key is wrong, for the reason the last section showed. Two prompts can put identical tokens in a block and still need different keys and values there, because the tokens before that block were different. A key built from the block's own tokens would call those two blocks the same block, and the second request would read the first request's attention state.
 
-vLLM builds the key from the block's tokens and the hash of the block before it. `hash_block_tokens` in `vllm/v1/core/kv_cache_utils.py` takes the parent block's hash, the block's token IDs, and a tuple of extra keys, which is where tenant isolation enters later. The first block has no parent, so it starts from a fixed seed.
+vLLM builds the key from the block's tokens and the hash of the block before it. [`hash_block_tokens`][hbt] in `vllm/v1/core/kv_cache_utils.py` takes the parent block's hash, the block's token IDs, and a tuple of extra keys, which is where tenant isolation enters later. The first block has no parent, so it starts from a fixed seed.
 
 The effect is that a block's hash stops being a fingerprint of 64 tokens. The hash of the fourth block fingerprints all 256 tokens up to that point, with its own 64 at the end. Identical tokens after a different prefix hash differently, so they cannot collide by accident.
 
@@ -169,7 +169,7 @@ Two consequences follow. Prefix caching costs no extra memory, because the block
 
 ## Only full blocks get cached
 
-`cache_full_blocks` in `vllm/v1/core/block_pool.py` stores full blocks. A trailing partial block has no hash and no entry, since appending the next token would change its contents.
+[`cache_full_blocks`][cfb] in `vllm/v1/core/block_pool.py` stores full blocks. A trailing partial block has no hash and no entry, since appending the next token would change its contents.
 
 With the default block size of 64, a shared prefix of 100 tokens caches one block. The other 36 tokens get prefilled on every request.
 
@@ -284,12 +284,15 @@ Next in this series: chunked prefill, and what to do about the long prompt that 
 ## References
 
 - Kwon et al., *Efficient Memory Management for Large Language Model Serving with PagedAttention*, SOSP 2023. [arXiv][paged]
-- vLLM source, in `vllm/v1/core/kv_cache_utils.py`, `vllm/v1/core/block_pool.py`, and `vllm/v1/core/kv_cache_manager.py`
+- vLLM source, in [`kv_cache_utils.py`][hbt], [`block_pool.py`][cfb], and [`kv_cache_manager.py`][kcm]
 - [vLLM automatic prefix caching design][vapc], [production metrics][vmetrics], and [security guidance][vsec] on the timing side channel and `cache_salt`
 - Zheng et al., *SGLang: Efficient Execution of Structured Language Model Programs*, NeurIPS 2024, which indexes shared prefixes with a radix tree instead of a hash chain. [paper][sglang]
 - [Meta Llama 3.1 model configuration][llama], the source of the 320 KiB per token figure
 
 [paged]: https://arxiv.org/abs/2309.06180
+[hbt]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_utils.py
+[cfb]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/block_pool.py
+[kcm]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_manager.py
 [vapc]: https://docs.vllm.ai/en/latest/design/prefix_caching/
 [vmetrics]: https://docs.vllm.ai/en/latest/usage/metrics/
 [vsec]: https://docs.vllm.ai/en/latest/usage/security/
