@@ -93,9 +93,13 @@ The match also ends for good at the first difference. If two prompts agree for 1
 
 ## Hashing a block together with its history
 
-A runtime needs to answer one question quickly. Given a new prompt, which of its blocks does the pool already hold?
+Reuse needs a lookup key. A request arrives, the runtime cuts the prompt into 64-token blocks, and for each one it has to ask the pool a yes-or-no question: do you already hold this block?
 
-vLLM hashes each full block, and it folds the parent block's hash into the child. From `hash_block_tokens` in `vllm/v1/core/kv_cache_utils.py`, the hash covers the parent hash, the block's token IDs, and a tuple of extra keys. Chaining is what makes the lookup correct. A block holding the same 64 tokens after a different prefix produces a different hash, so it cannot match by accident.
+The obvious key is a hash of the block's 64 token IDs. That key is wrong, for the reason the last section showed. Two prompts can put identical tokens in a block and still need different keys and values there, because the tokens before that block were different. A key built from the block's own tokens would call those two blocks the same block, and the second request would read the first request's attention state.
+
+vLLM builds the key from the block's tokens and the hash of the block before it. `hash_block_tokens` in `vllm/v1/core/kv_cache_utils.py` takes the parent block's hash, the block's token IDs, and a tuple of extra keys, which is where tenant isolation enters later. The first block has no parent, so it starts from a fixed seed.
+
+The effect is that a block's hash stops being a fingerprint of 64 tokens. The hash of the fourth block fingerprints all 256 tokens up to that point, with its own 64 at the end. Identical tokens after a different prefix hash differently, so they cannot collide by accident.
 
 <svg viewBox="0 0 720 260" role="img" aria-label="Animated hash chain in which each block hash is computed from the previous hash and the block's token IDs" style="width:100%;height:auto;max-width:720px;">
   <style>
@@ -130,10 +134,12 @@ vLLM hashes each full block, and it folds the parent block's hash into the child
     <text x="624" y="114" font-size="10.5" fill="currentColor" text-anchor="middle">h3 = hash(h2, tokens)</text>
   </g>
   <text x="0" y="158" font-size="12" fill="currentColor">Looking up h2 asks one question: has anyone stored these 64 tokens, after exactly these 128 tokens?</text>
-  <text x="0" y="180" font-size="12" fill="currentColor">That is why a lookup can walk forward and stop at the first miss.</text>
+  <text x="0" y="180" font-size="12" fill="currentColor">A lookup walks the blocks in order and stops at the first miss.</text>
   <text x="0" y="212" font-size="12" fill="currentColor" opacity="0.8">The default hash is SHA-256, set by prefix_caching_hash_algo in vllm/config/cache.py. The seed for the</text>
   <text x="0" y="230" font-size="12" fill="currentColor" opacity="0.8">first block comes from PYTHONHASHSEED when set, and from a fixed string otherwise.</text>
 </svg>
+
+Stopping at the first miss costs nothing. Attention over a block needs the keys and values of every block before it, so once one block is missing, no later block in that prompt is usable even if the pool happens to hold it.
 
 ## The cache is the free list
 
