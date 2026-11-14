@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #7: prefix caching"
+title: "LLM Inference #7: Prefix Caching"
 date: 2026-11-14 12:00:00 -0500
 categories: [AI, LLM Inference]
 tags: [llm, inference, prefix-caching, kv-cache, vllm, ttft]

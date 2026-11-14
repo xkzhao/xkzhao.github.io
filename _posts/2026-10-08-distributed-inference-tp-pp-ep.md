@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #4: tensor, pipeline, and expert parallelism"
+title: "LLM Inference #4: Tensor, Pipeline, and Expert Parallelism"
 date: 2026-10-08 00:00:00 -0400
 categories: [AI, LLM Inference]
 tags: [llm, inference, tensor-parallelism, pipeline-parallelism, expert-parallelism, gpu]

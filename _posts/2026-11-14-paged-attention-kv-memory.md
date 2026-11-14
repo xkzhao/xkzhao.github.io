@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #6: paged attention"
+title: "LLM Inference #6: Paged Attention"
 date: 2026-11-14 00:00:00 -0500
 categories: [AI, LLM Inference]
 tags: [llm, inference, paged-attention, kv-cache, vllm, memory-management]

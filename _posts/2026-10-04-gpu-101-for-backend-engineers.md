@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #2: GPU 101 for backend engineers"
+title: "LLM Inference #2: GPU 101 for Backend Engineers"
 date: 2026-10-04
 categories: [AI, LLM Inference]
 tags: [llm, inference, gpu, cuda, memory-bandwidth]

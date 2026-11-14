@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #5: batching"
+title: "LLM Inference #5: Batching"
 date: 2026-11-05 00:00:00 -0400
 categories: [AI, LLM Inference]
 tags: [llm, inference, batching, continuous-batching, kv-cache, scheduling]
