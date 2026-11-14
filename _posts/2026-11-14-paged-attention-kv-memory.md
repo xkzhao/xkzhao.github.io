@@ -1,35 +1,35 @@
 ---
 layout: post
-title: "PagedAttention: What the KV Cache Learned from Virtual Memory"
+title: "Paged attention: why the GPU runs out of KV cache early"
 date: 2026-11-14 00:00:00 -0500
 categories: [AI, LLM Inference]
 tags: [llm, inference, paged-attention, kv-cache, vllm, memory-management]
-description: "Why an LLM server runs out of KV cache long before the arithmetic says it should, and how splitting the cache into fixed-size blocks with a block table recovers the lost memory."
+description: "An LLM server stops admitting requests while a third of its KV memory looks free. This explains where the memory goes, how block tables get it back, and what the current vLLM code does differently from the PagedAttention paper."
 ---
 
-Your dashboard says the eight-GPU server has KV capacity for about 120 typical requests. It stops admitting new ones at 80. The model weights did not grow. Nobody deployed anything. The queue builds up while a third of the memory budget sits there, apparently free.
+Your dashboard says the eight-GPU server has KV capacity for about 120 typical requests. It stops admitting new ones at 80. The weights did not grow and nobody deployed anything. The queue builds while a third of the memory budget sits there, apparently free.
 
-Where did it go?
+The memory is not missing. It is reserved for tokens that do not exist yet, and some of it is reserved for tokens that will never exist.
 
-The [previous post]({% post_url 2026-11-05-llm-inference-batching %}) ended on exactly this problem. Continuous batching gets more tokens out of every byte of weights read, but only if you can keep enough sequences resident, and each sequence needs its KV cache in GPU memory the whole time it runs. The scheduler has to decide whether a new request's cache will fit **before** it admits the request, and it has no idea how long the answer will be.
+The [batching article]({% post_url 2026-11-05-llm-inference-batching %}) ended on this problem. Continuous batching pays off only if you keep enough sequences resident, and every resident sequence holds its KV cache on the GPU until it finishes. The scheduler must decide whether a request fits before it admits the request, and it does not know how long the answer will be.
 
-This post is about the answer that the vLLM team gave in the [PagedAttention paper][paged], which is now how nearly every serving engine manages KV memory. The short version: the memory is not missing, it is *stranded*, and operating systems solved this particular problem decades ago.
+This article explains the allocator that fixes it. I checked every claim about vLLM against the source at commit `640c349`, because the [PagedAttention paper][paged] is from 2023 and the code has moved since. Three things in the paper are no longer how vLLM works. I flag each one where it comes up, and there is a section at the end that collects them.
 
-## The tempting design
+## One slab per request wastes most of the memory
 
-The obvious layout gives each request one contiguous region, sized for the longest answer it is allowed to produce. Addressing is then trivial — base pointer plus position — and the attention kernel reads a flat run of memory.
+The obvious layout gives each request one contiguous region, sized for the longest answer it may produce. Addressing is then cheap, because the address of position `i` is the base pointer plus `i` times the per-token size.
 
-Since you do not know the output length at admission, "large enough" has to mean the maximum. If your limit is 8,192 tokens, every request reserves 8,192 tokens' worth of space on arrival.
+You do not know the output length when the request arrives. So "large enough" has to mean the maximum. With a limit of 8,192 tokens, every request reserves 8,192 tokens of space on arrival.
 
-<svg viewBox="0 0 720 290" role="img" aria-label="A contiguous KV arena with three slabs, each reserved for 8K tokens but mostly unused, and a free tail too small for a fourth request" style="width:100%;height:auto;max-width:720px;">
+<svg viewBox="0 0 720 290" role="img" aria-label="A contiguous KV arena holding three slabs, each reserved for 8K tokens but mostly unused, with a free tail too small for a fourth request" style="width:100%;height:auto;max-width:720px;">
   <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">One contiguous slab per request, each sized for the worst case</text>
   <rect x="60" y="32" width="12" height="12" rx="2" fill="#10b981"/>
-  <text x="78" y="42" font-size="11.5" fill="currentColor">live KV — tokens that exist</text>
+  <text x="78" y="42" font-size="11.5" fill="currentColor">live KV, tokens that exist</text>
   <rect x="300" y="32" width="12" height="12" rx="2" fill="currentColor" opacity="0.14"/>
   <text x="318" y="42" font-size="11.5" fill="currentColor">reserved for tokens that may never exist</text>
-  <text x="147" y="72" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">request A — 8K reserved</text>
-  <text x="322" y="72" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">request B — 8K reserved</text>
-  <text x="497" y="72" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">request C — 8K reserved</text>
+  <text x="147" y="72" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">request A, 8K reserved</text>
+  <text x="322" y="72" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">request B, 8K reserved</text>
+  <text x="497" y="72" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">request C, 8K reserved</text>
   <rect x="60" y="80" width="600" height="60" rx="3" fill="currentColor" opacity="0.08"/>
   <rect x="60" y="80" width="44" height="60" fill="#10b981"/>
   <rect x="235" y="80" width="22" height="60" fill="#10b981"/>
@@ -42,39 +42,39 @@ Since you do not know the output length at admission, "large enough" has to mean
   <text x="322" y="158" font-size="10.5" fill="currentColor" text-anchor="middle">1K tokens live</text>
   <text x="497" y="158" font-size="10.5" fill="currentColor" text-anchor="middle">7K tokens live</text>
   <line x1="622" y1="144" x2="622" y2="170" stroke="#ef4444" stroke-width="1.2"/>
-  <text x="622" y="186" font-size="10.5" fill="#ef4444" text-anchor="middle">free, and useless</text>
+  <text x="622" y="186" font-size="10.5" fill="#ef4444" text-anchor="middle">free and unusable</text>
   <text x="0" y="226" font-size="12" fill="currentColor">Live tokens: 10K. Reserved tokens: 24K. Requests admitted: 3.</text>
-  <text x="0" y="250" font-size="12" fill="currentColor" opacity="0.8">Request D needs one unbroken slab. The leftover tail is real memory, and it is the wrong shape,</text>
-  <text x="0" y="268" font-size="12" fill="currentColor" opacity="0.8">so D waits in the queue while the GPU runs at a third of the concurrency it could.</text>
+  <text x="0" y="250" font-size="12" fill="currentColor" opacity="0.8">Request D needs one unbroken slab. The leftover tail is real memory in the wrong shape,</text>
+  <text x="0" y="268" font-size="12" fill="currentColor" opacity="0.8">so D waits while the GPU runs at a third of the concurrency it could.</text>
 </svg>
 
-Three separate things are going wrong in that picture, and it is worth naming them, because paging fixes them in different ways:
+Three separate problems hide in that picture.
 
-- **Reserved for later.** Space held for tokens the sequence genuinely will produce. Unavoidable in a contiguous scheme; you cannot hand the space out and take it back.
-- **Reserved forever.** Space held for tokens it will never produce, because it stopped at 2,000 and was allowed 8,192. This is the big one.
-- **Holes.** When sequences finish at different times, free memory ends up scattered in gaps, each too small to hold a new slab. Total free bytes look fine. None of them are usable.
+**Space for tokens that arrive later.** A running sequence will use some of its reservation. You cannot lend that space out and take it back, because the region has to stay contiguous.
 
-### How much memory is this, really
+**Space for tokens that never arrive.** A request allowed 8,192 tokens that stops at 2,000 holds the other 6,192 until it finishes. This is the expensive one.
 
-Put real numbers on it. [Llama 3.1 70B][llama] in BF16 has 80 layers, 8 KV heads, and head dimension 128, so one cached token costs:
+**Holes.** Sequences finish in a different order than they started, so free memory ends up in gaps. Each gap is too small for a new slab. The total free bytes look fine and none of them are usable.
+
+### Put a number on it
+
+[Llama 3.1 70B][llama] in BF16 has 80 layers, 8 KV heads, and head dimension 128. One cached token costs:
 
 ~~~text
-2 (K and V) × 80 layers × 8 KV heads × 128 dims × 2 bytes = 327,680 bytes = 320 KiB per token
+2 (K and V) x 80 layers x 8 KV heads x 128 dims x 2 bytes = 327,680 bytes = 320 KiB per token
 ~~~
 
-A request allowed 8,192 tokens reserves `8,192 × 320 KiB = 2.5 GiB`. If it actually produces 2,048 tokens, it uses `0.625 GiB`. The difference — **1.875 GiB per request** — is reserved and never touched. Across 100 concurrent requests, that is 187.5 GiB of KV capacity held hostage.
+A request allowed 8,192 tokens reserves 2.5 GiB. If it produces 2,048 tokens, it uses 0.625 GiB. The other 1.875 GiB stays reserved and untouched. Across 100 concurrent requests that is 187.5 GiB of KV capacity that nobody can use.
 
-That is why the dashboard and the admission controller disagree.
+That is the gap between your dashboard and your admission controller.
 
-## The idea: stop requiring the memory to be contiguous
+## Virtual memory already solved this
 
-The problem is not that the sequence needs a lot of memory. The problem is that it needs memory it does not have *yet*, in one piece, at an address that cannot move.
+The sequence does not need a lot of memory. It needs memory it does not have yet, in one piece, at an address that cannot move. Operating systems hit the same wall in the 1960s.
 
-Operating systems hit this in the 1960s and answered it with virtual memory.
-
-<svg viewBox="0 0 720 250" role="img" aria-label="Virtual memory: a process sees contiguous pages, a page table maps each to a scattered physical frame" style="width:100%;height:auto;max-width:720px;">
+<svg viewBox="0 0 720 250" role="img" aria-label="Virtual memory: a process sees contiguous pages, a page table maps each page to a scattered physical frame" style="width:100%;height:auto;max-width:720px;">
   <defs><marker id="pvm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">How an operating system solved this</text>
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">What an operating system does</text>
   <text x="100" y="40" font-size="11" fill="currentColor" text-anchor="middle" opacity="0.8">what the process sees</text>
   <rect x="40" y="48" width="120" height="30" rx="3" fill="#3b82f6"/><text x="100" y="68" font-size="11" fill="#ffffff" text-anchor="middle">page 0</text>
   <rect x="40" y="82" width="120" height="30" rx="3" fill="#6366f1"/><text x="100" y="102" font-size="11" fill="#ffffff" text-anchor="middle">page 1</text>
@@ -83,10 +83,10 @@ Operating systems hit this in the 1960s and answered it with virtual memory.
   <line x1="168" y1="114" x2="232" y2="114" stroke="currentColor" stroke-width="1.4" marker-end="url(#pvm)"/>
   <text x="310" y="40" font-size="11" fill="currentColor" text-anchor="middle" opacity="0.8">page table</text>
   <rect x="240" y="48" width="140" height="132" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/>
-  <text x="310" y="72" font-size="11.5" fill="currentColor" text-anchor="middle">page 0 → frame 7</text>
-  <text x="310" y="102" font-size="11.5" fill="currentColor" text-anchor="middle">page 1 → frame 2</text>
-  <text x="310" y="132" font-size="11.5" fill="currentColor" text-anchor="middle">page 2 → frame 9</text>
-  <text x="310" y="162" font-size="11.5" fill="currentColor" text-anchor="middle">page 3 → frame 4</text>
+  <text x="310" y="72" font-size="11.5" fill="currentColor" text-anchor="middle">page 0 to frame 7</text>
+  <text x="310" y="102" font-size="11.5" fill="currentColor" text-anchor="middle">page 1 to frame 2</text>
+  <text x="310" y="132" font-size="11.5" fill="currentColor" text-anchor="middle">page 2 to frame 9</text>
+  <text x="310" y="162" font-size="11.5" fill="currentColor" text-anchor="middle">page 3 to frame 4</text>
   <line x1="388" y1="114" x2="432" y2="114" stroke="currentColor" stroke-width="1.4" marker-end="url(#pvm)"/>
   <text x="565" y="40" font-size="11" fill="currentColor" text-anchor="middle" opacity="0.8">physical memory</text>
   <rect x="440" y="48" width="56" height="30" rx="2" fill="currentColor" opacity="0.08"/><text x="468" y="67" font-size="9" fill="currentColor" text-anchor="middle" opacity="0.6">0</text>
@@ -102,28 +102,44 @@ Operating systems hit this in the 1960s and answered it with virtual memory.
   <rect x="560" y="116" width="56" height="30" rx="2" fill="currentColor" opacity="0.08"/><text x="588" y="135" font-size="9" fill="currentColor" text-anchor="middle" opacity="0.6">10</text>
   <rect x="620" y="116" width="56" height="30" rx="2" fill="currentColor" opacity="0.08"/><text x="648" y="135" font-size="9" fill="currentColor" text-anchor="middle" opacity="0.6">11</text>
   <text x="0" y="212" font-size="12" fill="currentColor">The process sees one unbroken run of pages. The hardware keeps them wherever there was room.</text>
-  <text x="0" y="234" font-size="12" fill="currentColor" opacity="0.8">Nothing in the process has to know, and no free frame is ever the wrong shape.</text>
+  <text x="0" y="234" font-size="12" fill="currentColor" opacity="0.8">No free frame is ever the wrong shape, because every frame is the same size.</text>
 </svg>
 
-Now do the same thing to the KV cache.
+Now do the same thing to the KV cache. Cut each sequence's cache into fixed-size blocks. Keep a block table per sequence that maps its block 0, 1, 2 and so on to whatever physical slots are free. The sequence keeps a strict order of positions. It stops caring where those positions live.
 
-Cut each sequence's cache into fixed-size **blocks** — 16 tokens is the usual default. Keep a **block table** per sequence that maps its block 0, 1, 2, … to whichever physical slots in the GPU's KV pool happen to be free. The sequence still has a strict logical order of positions; it just stops caring where those positions live.
-
-<svg viewBox="0 0 720 285" role="img" aria-label="A sequence's logical KV blocks map through a block table to scattered physical slots in the GPU KV pool" style="width:100%;height:auto;max-width:720px;">
+<svg viewBox="0 0 720 300" role="img" aria-label="A sequence's logical KV blocks map through a block table to scattered slots in the GPU KV pool, with the lookup animating one block at a time" style="width:100%;height:auto;max-width:720px;">
+  <style>
+    @keyframes pa-g0 { 0%, 20% { opacity: 1 } 24%, 100% { opacity: 0 } }
+    @keyframes pa-g1 { 0%, 20% { opacity: 0 } 24%, 45% { opacity: 1 } 49%, 100% { opacity: 0 } }
+    @keyframes pa-g2 { 0%, 45% { opacity: 0 } 49%, 70% { opacity: 1 } 74%, 100% { opacity: 0 } }
+    @keyframes pa-g3 { 0%, 70% { opacity: 0 } 74%, 95% { opacity: 1 } 99%, 100% { opacity: 0 } }
+    .pa-gather { opacity: 0 }
+    .pa-g0 { animation: pa-g0 5s linear infinite }
+    .pa-g1 { animation: pa-g1 5s linear infinite }
+    .pa-g2 { animation: pa-g2 5s linear infinite }
+    .pa-g3 { animation: pa-g3 5s linear infinite }
+    @media (prefers-reduced-motion: reduce) {
+      .pa-gather { animation: none !important; opacity: 1 }
+    }
+  </style>
   <defs><marker id="pkv" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">The same trick, applied to one sequence's KV cache</text>
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">The same idea, applied to one sequence's KV cache</text>
   <text x="95" y="42" font-size="11" fill="currentColor" text-anchor="middle" opacity="0.8">what the sequence sees</text>
-  <rect x="25" y="52" width="140" height="30" rx="3" fill="#3b82f6"/><text x="95" y="72" font-size="10.5" fill="#ffffff" text-anchor="middle">block 0 · tokens 0–15</text>
-  <rect x="25" y="86" width="140" height="30" rx="3" fill="#6366f1"/><text x="95" y="106" font-size="10.5" fill="#ffffff" text-anchor="middle">block 1 · tokens 16–31</text>
-  <rect x="25" y="120" width="140" height="30" rx="3" fill="#10b981"/><text x="95" y="140" font-size="10.5" fill="#ffffff" text-anchor="middle">block 2 · tokens 32–47</text>
-  <rect x="25" y="154" width="140" height="30" rx="3" fill="#f59e0b"/><text x="95" y="174" font-size="10.5" fill="#ffffff" text-anchor="middle">block 3 · tokens 48–51</text>
+  <rect x="25" y="52" width="140" height="30" rx="3" fill="#3b82f6"/><text x="95" y="72" font-size="10.5" fill="#ffffff" text-anchor="middle">block 0, tokens 0-63</text>
+  <rect x="25" y="86" width="140" height="30" rx="3" fill="#6366f1"/><text x="95" y="106" font-size="10.5" fill="#ffffff" text-anchor="middle">block 1, tokens 64-127</text>
+  <rect x="25" y="120" width="140" height="30" rx="3" fill="#10b981"/><text x="95" y="140" font-size="10.5" fill="#ffffff" text-anchor="middle">block 2, tokens 128-191</text>
+  <rect x="25" y="154" width="140" height="30" rx="3" fill="#f59e0b"/><text x="95" y="174" font-size="10.5" fill="#ffffff" text-anchor="middle">block 3, filling</text>
   <line x1="173" y1="118" x2="237" y2="118" stroke="currentColor" stroke-width="1.4" marker-end="url(#pkv)"/>
   <text x="320" y="42" font-size="11" fill="currentColor" text-anchor="middle" opacity="0.8">block table</text>
   <rect x="245" y="52" width="150" height="132" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/>
-  <text x="320" y="76" font-size="11.5" fill="currentColor" text-anchor="middle">block 0 → slot 7</text>
-  <text x="320" y="106" font-size="11.5" fill="currentColor" text-anchor="middle">block 1 → slot 2</text>
-  <text x="320" y="136" font-size="11.5" fill="currentColor" text-anchor="middle">block 2 → slot 9</text>
-  <text x="320" y="166" font-size="11.5" fill="currentColor" text-anchor="middle">block 3 → slot 4</text>
+  <rect class="pa-gather pa-g0" x="249" y="58" width="142" height="24" rx="2" fill="#3b82f6" opacity="0"/>
+  <rect class="pa-gather pa-g1" x="249" y="88" width="142" height="24" rx="2" fill="#6366f1" opacity="0"/>
+  <rect class="pa-gather pa-g2" x="249" y="118" width="142" height="24" rx="2" fill="#10b981" opacity="0"/>
+  <rect class="pa-gather pa-g3" x="249" y="148" width="142" height="24" rx="2" fill="#f59e0b" opacity="0"/>
+  <text x="320" y="76" font-size="11.5" fill="currentColor" text-anchor="middle">block 0 to slot 7</text>
+  <text x="320" y="106" font-size="11.5" fill="currentColor" text-anchor="middle">block 1 to slot 2</text>
+  <text x="320" y="136" font-size="11.5" fill="currentColor" text-anchor="middle">block 2 to slot 9</text>
+  <text x="320" y="166" font-size="11.5" fill="currentColor" text-anchor="middle">block 3 to slot 4</text>
   <line x1="403" y1="118" x2="447" y2="118" stroke="currentColor" stroke-width="1.4" marker-end="url(#pkv)"/>
   <text x="575" y="42" font-size="11" fill="currentColor" text-anchor="middle" opacity="0.8">KV pool on the GPU</text>
   <rect x="455" y="52" width="52" height="30" rx="2" fill="currentColor" opacity="0.08"/><text x="481" y="71" font-size="9" fill="currentColor" text-anchor="middle" opacity="0.55">free</text>
@@ -138,80 +154,92 @@ Cut each sequence's cache into fixed-size **blocks** — 16 tokens is the usual 
   <rect x="511" y="120" width="52" height="30" rx="2" fill="#10b981"/><text x="537" y="139" font-size="9" fill="#ffffff" text-anchor="middle">9</text>
   <rect x="567" y="120" width="52" height="30" rx="2" fill="currentColor" opacity="0.08"/><text x="593" y="139" font-size="9" fill="currentColor" text-anchor="middle" opacity="0.55">free</text>
   <rect x="623" y="120" width="52" height="30" rx="2" fill="currentColor" opacity="0.08"/><text x="649" y="139" font-size="9" fill="currentColor" text-anchor="middle" opacity="0.55">free</text>
-  <text x="0" y="214" font-size="12" fill="currentColor">The sequence keeps its order. The pool keeps its freedom. The block table is the only thing in between.</text>
-  <text x="0" y="236" font-size="12" fill="currentColor" opacity="0.8">To compute attention for token 52, the kernel walks the block table and gathers K and V from slots 7, 2, 9 and 4.</text>
-  <text x="0" y="262" font-size="11.5" fill="currentColor" opacity="0.65">16 tokens per block is a common default, not a law. It is a tuning knob — see below.</text>
+  <rect class="pa-gather pa-g0" x="621" y="84" width="56" height="34" rx="3" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0"/>
+  <rect class="pa-gather pa-g1" x="565" y="50" width="56" height="34" rx="3" fill="none" stroke="#6366f1" stroke-width="3" opacity="0"/>
+  <rect class="pa-gather pa-g2" x="509" y="118" width="56" height="34" rx="3" fill="none" stroke="#10b981" stroke-width="3" opacity="0"/>
+  <rect class="pa-gather pa-g3" x="453" y="84" width="56" height="34" rx="3" fill="none" stroke="#f59e0b" stroke-width="3" opacity="0"/>
+  <text x="0" y="222" font-size="12" fill="currentColor">To compute attention for the next token, the kernel walks the block table and reads K and V from each slot.</text>
+  <text x="0" y="244" font-size="12" fill="currentColor" opacity="0.8">The animation steps through that walk. The order of the slots in the pool does not matter.</text>
+  <text x="0" y="272" font-size="11.5" fill="currentColor" opacity="0.65">Block sizes here are 64 tokens, which is vLLM's current default.</text>
 </svg>
 
-**A precision worth keeping.** Two separate things got invented here, and people routinely conflate them. The **block manager** is an allocator: fixed-size blocks, a free pool, block tables. **PagedAttention** is the attention kernel that can read K and V scattered across those blocks instead of from one flat run. You need both, but they are different pieces, and other runtimes mix and match — [vAttention][vattn] keeps contiguous *virtual* addressing and pages the physical memory underneath, which lets it run unmodified attention kernels.
+Two separate pieces got built here and people mix them up. The **block manager** is an allocator. It owns fixed-size blocks, a free list, and the per-sequence block tables. **PagedAttention** is the attention kernel that reads K and V scattered across those blocks instead of from one flat run. You need both, and they are different code.
 
-**Where the analogy breaks.** There is no hardware MMU doing this. The block table is an ordinary tensor the runtime maintains and the kernel indexes, in software, on every attention call. There is no page fault, no demand paging from disk, and no transparent rescue if you get the mapping wrong — a block-table bug is a correctness bug that produces plausible-looking wrong text. And unlike an OS page, a KV block's contents are tied to specific token IDs at specific positions under specific weights, which is what makes the sharing tricks later in this post possible and what makes them dangerous to get wrong.
+That second piece has aged. On NVIDIA hardware vLLM now runs FlashAttention by default, and the backend hands it a `block_table` tensor directly. The hand-written `paged_attention` CUDA kernel from the paper still exists, mostly on ROCm and older paths. The block table won. The specific kernel got absorbed.
 
-## Growth, one token at a time
+**Where the analogy stops.** No hardware MMU does any of this. The block table is an ordinary tensor the runtime maintains and the kernel indexes in software on every attention call. There is no page fault and no demand paging from disk. If you get a mapping wrong, nothing traps. The model reads the wrong keys and values and produces fluent, confident, wrong text.
 
-Here is where paging earns its keep during decode. A sequence grows by exactly one token per step. In the contiguous world, that is why you had to reserve for the worst case: growth has nowhere to go. In the paged world, growth touches one block.
+## Growth costs one block
 
-<svg viewBox="0 0 720 265" role="img" aria-label="A decoding sequence fills its last block token by token, then takes one new block from the free pool" style="width:100%;height:auto;max-width:720px;">
+This is where paging pays during decode. A sequence grows by one token per step. In the contiguous layout that is exactly why you reserved for the worst case, because growth has nowhere to go. With blocks, growth touches one block.
+
+<svg viewBox="0 0 720 230" role="img" aria-label="Animation of a sequence filling its last KV block token by token, then taking a new block from the free pool" style="width:100%;height:auto;max-width:720px;">
+  <style>
+    @keyframes pa-grow { 0% { transform: scaleX(0) } 55%, 100% { transform: scaleX(1) } }
+    @keyframes pa-grow2 { 0%, 62% { transform: scaleX(0) } 70%, 100% { transform: scaleX(0.125) } }
+    @keyframes pa-appear { 0%, 60% { opacity: 0 } 68%, 100% { opacity: 1 } }
+    @keyframes pa-taken { 0%, 60% { opacity: 0.1 } 68%, 100% { opacity: 1 } }
+    .pa-bar { transform-box: fill-box; transform-origin: left center }
+    .pa-b1 { animation: pa-grow 7s steps(16, end) infinite }
+    .pa-b2 { animation: pa-grow2 7s steps(8, end) infinite }
+    .pa-new { animation: pa-appear 7s linear infinite }
+    .pa-slot { animation: pa-taken 7s linear infinite }
+    @media (prefers-reduced-motion: reduce) {
+      .pa-bar, .pa-new, .pa-slot { animation: none !important }
+      .pa-b2 { transform: scaleX(0.125) }
+    }
+  </style>
   <defs><marker id="pgr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#ef4444"/></marker></defs>
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">Growth costs one block, not one slab</text>
-  <text x="0" y="55" font-size="11" fill="currentColor">after 50 tokens</text>
-  <rect x="150" y="38" width="72" height="24" rx="2" fill="#3b82f6"/><text x="186" y="54" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="230" y="38" width="72" height="24" rx="2" fill="#6366f1"/><text x="266" y="54" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="310" y="38" width="72" height="24" rx="2" fill="#10b981"/><text x="346" y="54" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="390" y="38" width="88" height="24" rx="2" fill="none" stroke="#f59e0b" stroke-width="1.3"/>
-  <rect x="392" y="40" width="5" height="20" fill="#f59e0b"/><rect x="397.5" y="40" width="5" height="20" fill="#f59e0b"/>
-  <text x="488" y="54" font-size="10.5" fill="currentColor">block 3 holds 2 of its 16 token slots</text>
-  <text x="0" y="105" font-size="11" fill="currentColor">14 steps later</text>
-  <rect x="150" y="88" width="72" height="24" rx="2" fill="#3b82f6"/><text x="186" y="104" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="230" y="88" width="72" height="24" rx="2" fill="#6366f1"/><text x="266" y="104" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="310" y="88" width="72" height="24" rx="2" fill="#10b981"/><text x="346" y="104" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="390" y="88" width="88" height="24" rx="2" fill="#f59e0b"/><text x="434" y="104" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <text x="488" y="104" font-size="10.5" fill="currentColor">full — the next token has nowhere to go</text>
-  <text x="0" y="155" font-size="11" fill="currentColor">next token</text>
-  <rect x="150" y="138" width="72" height="24" rx="2" fill="#3b82f6"/><text x="186" y="154" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="230" y="138" width="72" height="24" rx="2" fill="#6366f1"/><text x="266" y="154" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="310" y="138" width="72" height="24" rx="2" fill="#10b981"/><text x="346" y="154" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="390" y="138" width="88" height="24" rx="2" fill="#f59e0b"/><text x="434" y="154" font-size="9" fill="#ffffff" text-anchor="middle">16/16</text>
-  <rect x="486" y="138" width="88" height="24" rx="2" fill="none" stroke="#ef4444" stroke-width="1.3" stroke-dasharray="4 3"/>
-  <rect x="488" y="140" width="5" height="20" fill="#ef4444"/>
-  <text x="582" y="154" font-size="10.5" fill="#ef4444">one new block</text>
-  <text x="0" y="200" font-size="11" fill="currentColor">free pool</text>
-  <rect x="150" y="186" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
-  <rect x="174" y="186" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
-  <rect x="198" y="186" width="20" height="20" rx="2" fill="none" stroke="#ef4444" stroke-width="1.3"/>
-  <rect x="222" y="186" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
-  <rect x="246" y="186" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
-  <rect x="270" y="186" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
-  <line x1="214" y1="182" x2="480" y2="166" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#pgr)"/>
-  <text x="302" y="201" font-size="10.5" fill="#ef4444">slot 23, taken on demand</text>
-  <text x="0" y="240" font-size="12" fill="currentColor">A sequence only ever holds one partially filled block: its last one. Everything before it is packed solid.</text>
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">Growth takes one block, not one slab</text>
+  <text x="0" y="70" font-size="11" fill="currentColor">the sequence</text>
+  <rect x="120" y="52" width="88" height="30" rx="2" fill="#3b82f6"/><text x="164" y="71" font-size="9" fill="#ffffff" text-anchor="middle">full</text>
+  <rect x="212" y="52" width="88" height="30" rx="2" fill="#6366f1"/><text x="256" y="71" font-size="9" fill="#ffffff" text-anchor="middle">full</text>
+  <rect x="304" y="52" width="88" height="30" rx="2" fill="#10b981"/><text x="348" y="71" font-size="9" fill="#ffffff" text-anchor="middle">full</text>
+  <rect x="398" y="52" width="88" height="30" rx="2" fill="currentColor" opacity="0.1"/>
+  <rect class="pa-bar pa-b1" x="398" y="52" width="88" height="30" rx="2" fill="#f59e0b"/>
+  <rect x="398" y="52" width="88" height="30" rx="2" fill="none" stroke="#f59e0b" stroke-width="1.3"/>
+  <g class="pa-new">
+    <rect x="492" y="52" width="88" height="30" rx="2" fill="currentColor" opacity="0.1"/>
+    <rect class="pa-bar pa-b2" x="492" y="52" width="88" height="30" rx="2" fill="#ef4444"/>
+    <rect x="492" y="52" width="88" height="30" rx="2" fill="none" stroke="#ef4444" stroke-width="1.3" stroke-dasharray="4 3"/>
+    <text x="592" y="71" font-size="10.5" fill="#ef4444">new block</text>
+  </g>
+  <text x="0" y="128" font-size="11" fill="currentColor">free pool</text>
+  <rect x="120" y="114" width="22" height="22" rx="2" fill="currentColor" opacity="0.1"/>
+  <rect x="146" y="114" width="22" height="22" rx="2" fill="currentColor" opacity="0.1"/>
+  <rect class="pa-slot" x="172" y="114" width="22" height="22" rx="2" fill="#ef4444" opacity="0.1"/>
+  <rect x="198" y="114" width="22" height="22" rx="2" fill="currentColor" opacity="0.1"/>
+  <rect x="224" y="114" width="22" height="22" rx="2" fill="currentColor" opacity="0.1"/>
+  <rect x="250" y="114" width="22" height="22" rx="2" fill="currentColor" opacity="0.1"/>
+  <line x1="194" y1="112" x2="486" y2="88" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#pgr)"/>
+  <text x="290" y="130" font-size="10.5" fill="#ef4444">one slot, taken when the last block fills</text>
+  <text x="0" y="178" font-size="12" fill="currentColor">A sequence holds at most one partly filled block, which is always its last one.</text>
+  <text x="0" y="200" font-size="12" fill="currentColor" opacity="0.8">Every block before it is packed solid. The length limit no longer costs anything up front.</text>
 </svg>
 
-That last sentence is the whole result. Tail waste is bounded by one block per sequence, no matter how long the sequence runs or how high the length limit is set.
+That bound is the result worth remembering. Wasted space per sequence is less than one block, no matter how long the sequence runs or how high you set the length limit.
 
-## What is left of the waste
+## What waste is left
 
-Keep the Llama 3.1 70B numbers. One 16-token block costs `16 × 320 KiB = 5 MiB` across the model. A sequence that ends mid-block leaves at most 15 unused token slots; averaged over arbitrary ending points, about 7.5, which is **2.34 MiB**.
+vLLM's default block size is 64 tokens, set by `DEFAULT_BLOCK_SIZE` in `vllm/config/cache.py`. For the Llama 3.1 70B numbers above, one block costs 64 x 320 KiB = 20 MiB across the model. A sequence that stops partway through its last block leaves at most 63 unused token slots. Averaged over arbitrary stopping points that is about 32 slots, or 10 MiB.
 
-Compare that with the 1.875 GiB a contiguous slab was holding for the same request.
+Compare that with the 1.875 GiB the contiguous slab was holding for the same request.
 
-<svg viewBox="0 0 720 215" role="img" aria-label="Bar chart comparing 1.875 GiB wasted per request under contiguous allocation with 2.34 MiB under 16-token blocks" style="width:100%;height:auto;max-width:720px;">
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">Wasted KV memory per request — 8K limit, 2K actual output</text>
+<svg viewBox="0 0 720 215" role="img" aria-label="Bar chart comparing 1.875 GiB wasted per request under contiguous allocation with about 10 MiB under 64-token blocks" style="width:100%;height:auto;max-width:720px;">
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">Wasted KV memory per request, 8K limit and 2K actual output</text>
   <text x="0" y="78" font-size="11.5" fill="currentColor">contiguous slab</text>
   <rect x="150" y="58" width="440" height="30" rx="2" fill="#ef4444"/>
   <text x="600" y="78" font-size="12" font-weight="600" fill="#ef4444">1.875 GiB</text>
-  <text x="0" y="134" font-size="11.5" fill="currentColor">16-token blocks</text>
-  <rect x="150" y="114" width="3" height="30" fill="#10b981"/>
-  <text x="163" y="134" font-size="12" font-weight="600" fill="#10b981">2.34 MiB — the unused tail of one block</text>
-  <text x="0" y="176" font-size="12" fill="currentColor">Across 100 concurrent requests: 187.5 GiB stranded, against roughly 0.23 GiB of block tails.</text>
-  <text x="0" y="200" font-size="11.5" fill="currentColor" opacity="0.65">The bars are to scale. The green one is three pixels wide.</text>
+  <text x="0" y="134" font-size="11.5" fill="currentColor">64-token blocks</text>
+  <rect x="150" y="114" width="2" height="30" fill="#10b981"/>
+  <text x="162" y="134" font-size="12" font-weight="600" fill="#10b981">about 10 MiB, the unused tail of one block</text>
+  <text x="0" y="176" font-size="12" fill="currentColor">Across 100 concurrent requests: 187.5 GiB stranded against roughly 1 GiB of block tails.</text>
+  <text x="0" y="200" font-size="11.5" fill="currentColor" opacity="0.65">The bars are to scale. The green one is two pixels wide.</text>
 </svg>
 
-The external fragmentation disappears too, and for a reason worth stating plainly: **every free block is interchangeable**. A hole can never be the wrong size when all the holes are the same size. The allocator's job collapses from "find a large enough contiguous run" to "pop one off the free list."
+The holes disappear too, for a reason worth stating on its own. Every free block is interchangeable. A hole can never be the wrong size when all the holes are the same size, so the allocator's job drops from "find a large enough contiguous run" to "take the next block off the free list".
 
-So the picture from the top of the post turns into this.
-
-<svg viewBox="0 0 720 230" role="img" aria-label="The same GPU memory holding three sequences under contiguous allocation versus nine under paged allocation" style="width:100%;height:auto;max-width:720px;">
+<svg viewBox="0 0 720 230" role="img" aria-label="The same GPU memory holding three sequences under contiguous allocation and nine under paged allocation" style="width:100%;height:auto;max-width:720px;">
   <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">The same memory, repacked</text>
   <text x="0" y="56" font-size="11.5" fill="currentColor">contiguous</text>
   <text x="660" y="44" font-size="11.5" font-weight="600" fill="currentColor" text-anchor="end">3 sequences</text>
@@ -235,130 +263,134 @@ So the picture from the top of the post turns into this.
   <rect x="630" y="130" width="14" height="32" rx="1" fill="#0ea5e9"/><rect x="645" y="130" width="14" height="32" rx="1" fill="#0ea5e9"/>
   <rect x="90" y="130" width="570" height="32" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
   <text x="0" y="192" font-size="12" fill="currentColor">Nothing about the GPU changed. The allocator stopped holding memory for tokens that do not exist.</text>
-  <text x="0" y="214" font-size="11.5" fill="currentColor" opacity="0.65">Illustrative. Your gain depends mostly on how far your length limit sits above your typical output.</text>
+  <text x="0" y="214" font-size="11.5" fill="currentColor" opacity="0.65">Illustrative. Your gain depends on how far your length limit sits above your typical output.</text>
 </svg>
 
-## Choosing a block size
+## Picking a block size
 
-The one real knob. Blocks are the unit of allocation, so their size trades two costs against each other.
+Blocks are the unit of allocation, so their size trades two costs against each other.
 
-<svg viewBox="0 0 720 235" role="img" aria-label="A 50-token sequence stored in 4-token blocks versus 64-token blocks, showing the tradeoff between table entries and tail waste" style="width:100%;height:auto;max-width:720px;">
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">The same 50-token sequence, two block sizes</text>
+<svg viewBox="0 0 720 235" role="img" aria-label="The same 50-token sequence stored in 4-token blocks and in 64-token blocks, showing the tradeoff between table entries and tail waste" style="width:100%;height:auto;max-width:720px;">
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">The same 50-token sequence at two block sizes</text>
   <text x="0" y="62" font-size="11.5" fill="currentColor">4 tokens</text>
   <rect x="110" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="136" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="162" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="188" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="214" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="240" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="266" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="292" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="318" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="344" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="370" y="44" width="24" height="26" rx="2" fill="#10b981"/><rect x="396" y="44" width="24" height="26" rx="2" fill="#10b981"/>
   <rect x="422" y="44" width="12" height="26" rx="1" fill="#10b981"/>
   <rect x="434" y="44" width="12" height="26" rx="1" fill="currentColor" opacity="0.14"/>
-  <text x="462" y="62" font-size="11" fill="currentColor">13 block-table entries · 2 token slots wasted</text>
+  <text x="462" y="62" font-size="11" fill="currentColor">13 block-table entries, 2 token slots wasted</text>
   <text x="0" y="130" font-size="11.5" fill="currentColor">64 tokens</text>
   <rect x="110" y="112" width="262" height="26" rx="2" fill="#10b981"/>
   <rect x="372" y="112" width="74" height="26" rx="2" fill="currentColor" opacity="0.14"/>
   <rect x="110" y="112" width="336" height="26" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/>
-  <text x="462" y="130" font-size="11" fill="currentColor">1 block-table entry · 14 token slots wasted</text>
-  <text x="0" y="180" font-size="12" fill="currentColor">Smaller blocks waste less memory and cost more bookkeeping: longer tables, more indexing in the kernel,</text>
-  <text x="0" y="198" font-size="12" fill="currentColor">less regular memory access. Larger blocks do the reverse. 16 is the common compromise;</text>
-  <text x="0" y="216" font-size="12" fill="currentColor">the right answer depends on your model, your kernels and your length distribution.</text>
+  <text x="462" y="130" font-size="11" fill="currentColor">1 block-table entry, 14 token slots wasted</text>
+  <text x="0" y="180" font-size="12" fill="currentColor">Small blocks waste less memory and cost more bookkeeping. The table gets longer, the kernel does more</text>
+  <text x="0" y="198" font-size="12" fill="currentColor">indexing, and memory access gets less regular. Large blocks trade the other way.</text>
+  <text x="0" y="216" font-size="12" fill="currentColor" opacity="0.8">vLLM moved its default from 16 to 64 as attention kernels got better at large blocks.</text>
 </svg>
 
-## The part nobody expected: blocks are shareable
+Block size also sets the granularity of cache hits, which matters for the next section. Two requests can only share a block if they agree on all 64 of its tokens.
 
-Here is the thing that turned a memory optimization into a feature. Once KV lives in blocks behind a table, **two sequences can point at the same block**.
+## Sharing blocks between requests
 
-That matters because identical prefixes are everywhere in real traffic. Ask for five sampled completions of one prompt and all five share the prompt. Run beam search and the beams share everything up to where they diverged. The block manager keeps a reference count per physical block and hands the same slot to all of them.
+Once KV lives in blocks behind a table, two sequences can point at the same block. vLLM tracks this with `ref_cnt` on `KVCacheBlock` in `vllm/v1/core/kv_cache_utils.py`. A block with `ref_cnt` above zero cannot be reused by anyone else.
 
-<svg viewBox="0 0 720 235" role="img" aria-label="Two sampled answers sharing the same physical prompt blocks through their block tables" style="width:100%;height:auto;max-width:720px;">
+Identical prefixes are common in real traffic. Every request from one application starts with the same system prompt. Every turn of a chat repeats the whole conversation so far.
+
+<svg viewBox="0 0 720 235" role="img" aria-label="Two requests with the same system prompt pointing at the same physical blocks through their own block tables" style="width:100%;height:auto;max-width:720px;">
   <defs><marker id="psh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">One prompt, two answers — the prompt is stored once</text>
-  <text x="204" y="50" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">reference count 2</text>
-  <rect x="150" y="58" width="104" height="34" rx="3" fill="#3b82f6"/><text x="202" y="79" font-size="10" fill="#ffffff" text-anchor="middle">prompt 0–15</text>
-  <rect x="256" y="58" width="104" height="34" rx="3" fill="#3b82f6"/><text x="308" y="79" font-size="10" fill="#ffffff" text-anchor="middle">prompt 16–31</text>
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">Two requests, one copy of the shared prefix</text>
+  <text x="204" y="50" font-size="10.5" fill="currentColor" text-anchor="middle" opacity="0.8">ref_cnt = 2</text>
+  <rect x="150" y="58" width="104" height="34" rx="3" fill="#3b82f6"/><text x="202" y="79" font-size="10" fill="#ffffff" text-anchor="middle">system prompt</text>
+  <rect x="256" y="58" width="104" height="34" rx="3" fill="#3b82f6"/><text x="308" y="79" font-size="10" fill="#ffffff" text-anchor="middle">system prompt</text>
   <line x1="364" y1="70" x2="424" y2="56" stroke="currentColor" stroke-width="1.3" marker-end="url(#psh)"/>
   <line x1="364" y1="82" x2="424" y2="136" stroke="currentColor" stroke-width="1.3" marker-end="url(#psh)"/>
-  <text x="430" y="34" font-size="10.5" fill="currentColor" opacity="0.8">sample 1</text>
-  <rect x="430" y="42" width="112" height="32" rx="3" fill="#10b981"/><text x="486" y="62" font-size="10" fill="#ffffff" text-anchor="middle">A · 32–47</text>
-  <rect x="544" y="42" width="112" height="32" rx="3" fill="#10b981"/><text x="600" y="62" font-size="10" fill="#ffffff" text-anchor="middle">A · 48–63</text>
-  <text x="430" y="126" font-size="10.5" fill="currentColor" opacity="0.8">sample 2</text>
-  <rect x="430" y="134" width="112" height="32" rx="3" fill="#f59e0b"/><text x="486" y="154" font-size="10" fill="#ffffff" text-anchor="middle">B · 32–47</text>
-  <rect x="544" y="134" width="112" height="32" rx="3" fill="#f59e0b"/><text x="600" y="154" font-size="10" fill="#ffffff" text-anchor="middle">B · 48–63</text>
-  <text x="0" y="196" font-size="12" fill="currentColor">Two block tables, one copy of the prompt's keys and values. Without blocks, the prompt is stored twice.</text>
-  <text x="0" y="218" font-size="12" fill="currentColor" opacity="0.8">With a long shared prompt and several samples, this is most of the request's memory.</text>
+  <text x="430" y="34" font-size="10.5" fill="currentColor" opacity="0.8">request 1</text>
+  <rect x="430" y="42" width="112" height="32" rx="3" fill="#10b981"/><text x="486" y="62" font-size="10" fill="#ffffff" text-anchor="middle">its own tokens</text>
+  <rect x="544" y="42" width="112" height="32" rx="3" fill="#10b981"/><text x="600" y="62" font-size="10" fill="#ffffff" text-anchor="middle">its own tokens</text>
+  <text x="430" y="126" font-size="10.5" fill="currentColor" opacity="0.8">request 2</text>
+  <rect x="430" y="134" width="112" height="32" rx="3" fill="#f59e0b"/><text x="486" y="154" font-size="10" fill="#ffffff" text-anchor="middle">its own tokens</text>
+  <rect x="544" y="134" width="112" height="32" rx="3" fill="#f59e0b"/><text x="600" y="154" font-size="10" fill="#ffffff" text-anchor="middle">its own tokens</text>
+  <text x="0" y="196" font-size="12" fill="currentColor">Two block tables, one copy of the prefix keys and values. Request 2 also skips the prefill for those tokens.</text>
+  <text x="0" y="218" font-size="12" fill="currentColor" opacity="0.8">vLLM turns this on by default. enable_prefix_caching is True in vllm/config/cache.py.</text>
 </svg>
 
-Sharing works because KV is immutable once written: the keys and values for position 12 never change after position 12 is computed. The only moment that breaks is when two sequences need to write into the *same* partially filled block. The fix is the one the OS uses — copy that block, and only that block.
+Sharing works because KV is immutable once written. The keys and values for position 12 never change after the model computes position 12. vLLM finds shareable blocks by hashing the token IDs a block covers and looking the hash up in `cached_block_hash_to_block`.
 
-<svg viewBox="0 0 720 205" role="img" aria-label="Copy-on-write: a half-filled shared block is duplicated when two sequences must both write into it" style="width:100%;height:auto;max-width:720px;">
-  <defs><marker id="pcw" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">Copy-on-write, for the one block they both need to change</text>
-  <rect x="40" y="62" width="200" height="44" rx="3" fill="#6366f1"/>
-  <text x="140" y="80" font-size="10.5" fill="#ffffff" text-anchor="middle">tokens 32–47 · 9 of 16 filled</text>
-  <text x="140" y="96" font-size="10.5" fill="#ffffff" text-anchor="middle">reference count 2</text>
-  <line x1="248" y1="76" x2="396" y2="58" stroke="currentColor" stroke-width="1.3" marker-end="url(#pcw)"/>
-  <line x1="248" y1="92" x2="396" y2="132" stroke="currentColor" stroke-width="1.3" marker-end="url(#pcw)"/>
-  <rect x="402" y="38" width="200" height="40" rx="3" fill="#10b981"/>
-  <text x="502" y="63" font-size="10.5" fill="#ffffff" text-anchor="middle">copy for A · ref 1</text>
-  <rect x="402" y="116" width="200" height="40" rx="3" fill="#f59e0b"/>
-  <text x="502" y="141" font-size="10.5" fill="#ffffff" text-anchor="middle">copy for B · ref 1</text>
-  <text x="0" y="186" font-size="12" fill="currentColor">One block is duplicated. Every full block before it stays shared, however long the prompt was.</text>
-</svg>
+One detail makes this better than it sounds. When a request finishes, its blocks go back on a free list that keeps their contents and their hash. `FreeKVCacheBlockQueue` orders that list least-recently-used first, so a freed block survives until someone needs the space. A later request with the same prefix can still hit it.
 
-The same machinery, pointed at *different requests* rather than different samples of one request, becomes prefix caching: when a thousand users send the same system prompt, the server can keep those blocks and skip the prefill entirely. That deserves its own post, and it is the next one.
+I had expected a fork-and-copy design here, because that is what the paper describes for parallel sampling and beam search. The current code does something simpler, which I cover below.
 
-## When the pool runs dry anyway
+## When the pool is empty
 
-Paging buys a lot of headroom. It does not make memory infinite, and continuous batching will happily admit requests until it is gone. Sequences grow; eventually a running sequence asks for a block and there is none.
+Paging buys headroom. It does not make memory infinite, and continuous batching will admit requests until the headroom is gone. Sequences keep growing. Eventually a running sequence asks for a block and the free list is empty.
 
-<svg viewBox="0 0 720 270" role="img" aria-label="When the free pool is empty the runtime either swaps a victim sequence's blocks to CPU memory or drops them and recomputes later" style="width:100%;height:auto;max-width:720px;">
+<svg viewBox="0 0 720 235" role="img" aria-label="When the free pool is empty vLLM frees a victim request's blocks, resets its progress, and puts it back on the waiting queue" style="width:100%;height:auto;max-width:720px;">
   <defs><marker id="ppr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
-  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">When the free pool is empty</text>
-  <rect x="20" y="62" width="250" height="60" rx="4" fill="none" stroke="#ef4444" stroke-width="1.4"/>
-  <text x="145" y="86" font-size="11.5" fill="#ef4444" text-anchor="middle">a running sequence needs</text>
-  <text x="145" y="104" font-size="11.5" fill="#ef4444" text-anchor="middle">one more block, and there is none</text>
-  <line x1="278" y1="82" x2="352" y2="70" stroke="currentColor" stroke-width="1.3" marker-end="url(#ppr)"/>
-  <line x1="278" y1="102" x2="352" y2="166" stroke="currentColor" stroke-width="1.3" marker-end="url(#ppr)"/>
-  <rect x="358" y="42" width="340" height="60" rx="4" fill="none" stroke="#3b82f6" stroke-width="1.4"/>
-  <text x="372" y="66" font-size="11.5" font-weight="600" fill="#3b82f6">Swap out</text>
-  <text x="372" y="86" font-size="11" fill="currentColor">copy a victim's blocks to CPU memory, bring them back later</text>
-  <rect x="358" y="138" width="340" height="60" rx="4" fill="none" stroke="#f59e0b" stroke-width="1.4"/>
-  <text x="372" y="162" font-size="11.5" font-weight="600" fill="#f59e0b">Recompute</text>
-  <text x="372" y="182" font-size="11" fill="currentColor">drop the blocks, redo that prefill when it is rescheduled</text>
-  <text x="0" y="232" font-size="12" fill="currentColor">Either way, a sequence is evicted all at once: half its KV on the GPU is no use to anybody.</text>
-  <text x="0" y="254" font-size="12" fill="currentColor" opacity="0.8">Preemption count is the metric to watch. A server preempting constantly is admitting work it cannot hold.</text>
+  <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">What vLLM does when the free list is empty</text>
+  <rect x="10" y="54" width="180" height="56" rx="4" fill="none" stroke="#ef4444" stroke-width="1.4"/>
+  <text x="100" y="78" font-size="11" fill="#ef4444" text-anchor="middle">a running sequence needs</text>
+  <text x="100" y="94" font-size="11" fill="#ef4444" text-anchor="middle">a block, and there is none</text>
+  <line x1="196" y1="82" x2="232" y2="82" stroke="currentColor" stroke-width="1.3" marker-end="url(#ppr)"/>
+  <rect x="238" y="54" width="180" height="56" rx="4" fill="none" stroke="#f59e0b" stroke-width="1.4"/>
+  <text x="328" y="78" font-size="11" fill="currentColor" text-anchor="middle">pick a victim: the last</text>
+  <text x="328" y="94" font-size="11" fill="currentColor" text-anchor="middle">request in the running list</text>
+  <line x1="424" y1="82" x2="460" y2="82" stroke="currentColor" stroke-width="1.3" marker-end="url(#ppr)"/>
+  <rect x="466" y="54" width="244" height="56" rx="4" fill="none" stroke="#3b82f6" stroke-width="1.4"/>
+  <text x="588" y="72" font-size="11" fill="currentColor" text-anchor="middle">free all of its blocks, set</text>
+  <text x="588" y="88" font-size="11" fill="currentColor" text-anchor="middle">num_computed_tokens to 0, and</text>
+  <text x="588" y="104" font-size="11" fill="currentColor" text-anchor="middle">put it back on the waiting queue</text>
+  <text x="0" y="152" font-size="12" fill="currentColor">The victim loses all of its KV at once. Half a sequence of KV on the GPU is no use to anyone.</text>
+  <text x="0" y="174" font-size="12" fill="currentColor">When it runs again it redoes its prefill, though prefix caching often returns some of its old blocks.</text>
+  <text x="0" y="196" font-size="12" fill="currentColor" opacity="0.8">Watch the preemption counter. A server that preempts often is admitting work it cannot hold.</text>
+  <text x="0" y="222" font-size="11.5" fill="currentColor" opacity="0.65">Source: _preempt_request in vllm/v1/core/sched/scheduler.py</text>
 </svg>
 
-Swapping trades PCIe bandwidth for the prefill compute; recomputing trades the opposite way. Which is cheaper depends on the sequence length and your interconnect, and good runtimes pick per case.
+The paper also describes swapping the victim's blocks to CPU memory and copying them back later. The V1 engine dropped that. Recompute is the only preemption path now, and prefix caching takes most of the sting out of it, because the victim's old blocks are often still sitting on the free list when it comes back.
 
-## What this does and does not buy you
+## Where the paper and the current code differ
 
-Worth being blunt, because "PagedAttention makes inference faster" is not quite true.
+I went in expecting the 2023 design and found three differences. If you learned this from the paper, these are the corrections.
 
-What it directly produces is **more usable KV positions per GB of GPU memory**. Everything else is downstream of that, and only pays out if memory was your binding constraint:
+**Block size.** The paper and most write-ups use 16 tokens. `DEFAULT_BLOCK_SIZE` in `vllm/config/cache.py` is now 64. Larger blocks suit the attention kernels that shipped since.
 
-- If you were turning requests away for lack of KV, concurrency rises, the batch gets bigger, and throughput follows — this is where the paper's 2–4× against Orca comes from.
-- Time to first token can improve, simply because queued requests get admitted sooner.
-- Per-token latency may not improve at all. It can get slightly *worse*: the kernel now does indirection through a block table, and a bigger batch makes each step longer. You traded latency for throughput, which is usually the right trade and is still a trade.
-- If your bottleneck is compute, kernel launches, or the network, this changes nothing. A GPU that was already compute-bound stays compute-bound.
+**Preemption.** The paper offers swap-out and recompute. V1 implements recompute only. `_preempt_request` frees the blocks, sets `num_computed_tokens` to 0, and re-queues the request.
 
-Output quality should be identical. Same K and V, same positions, same mask — only the addresses changed. That is also the thing to test hardest: block-table and masking bugs produce fluent, confident, wrong text rather than a crash. Test across block boundaries, cancellations, preemption and resume, and shared-prefix cases specifically.
+**Sharing.** The paper forks a sequence and copies the one block both children need to write, which is classic copy-on-write. V1 has no fork path. A request with `n` above 1 becomes `n` independent child requests in `vllm/v1/engine/parallel_sampling.py`, and they share the prompt through the ordinary prefix cache. Beam search moved out of the engine entirely and now sits in the entrypoints layer. Block copies still exist in V1, but only for a narrow case, which is a partial prefix-cache hit that lands inside a block.
 
-And do not read "free HBM" as "free blocks". The pool is sized by configuration at startup and shares the GPU with weights, activations and workspace.
+The idea in the paper held up. The specific mechanisms around it got replaced by hashing and a shared cache.
+
+## What you get, and what you do not
+
+"PagedAttention makes inference faster" is not quite right. What it produces is more usable KV positions per GB of GPU memory. Everything else follows from that, and only if memory was your binding constraint.
+
+If you were turning requests away for lack of KV, concurrency rises, the batch grows, and throughput follows. This is where the paper's 2x to 4x against Orca comes from. Time to first token can improve too, because queued requests get admitted sooner.
+
+Per-token latency may not improve at all. It can get slightly worse, since the kernel now indexes through a block table and a larger batch makes each step longer. You traded latency for throughput. That is usually the right trade and it is still a trade.
+
+If your bottleneck is compute, kernel launches, or the network, none of this helps. A GPU that was compute-bound stays compute-bound.
+
+Output quality should not change. Same K and V, same positions, same mask, different addresses. That is also the thing to test hardest, because block-table and masking bugs produce fluent wrong text rather than a crash. Test across block boundaries, cancellations, preemption and resume, and shared prefixes.
+
+One last trap. Free HBM is not free blocks. vLLM sizes the pool once at startup from `gpu_memory_utilization`, and the pool shares the GPU with weights, activations, and workspace.
 
 ## Summary
 
-- A contiguous KV cache forces you to reserve for the longest answer a request is allowed to give, so most of the reservation is never used, and what is left over is scattered into holes.
-- Paging cuts the cache into fixed-size blocks and adds a block table, which is exactly what virtual memory does for processes.
-- Waste per sequence drops from gigabytes to the tail of one block, and fragmentation disappears because every free block is interchangeable.
-- Blocks can be shared with a reference count, which gives parallel sampling, beam search and prefix caching almost for free, with copy-on-write at the one block that diverges.
-- When the pool empties, sequences are preempted whole, by swapping to host memory or by recomputing.
+- A contiguous KV cache forces you to reserve for the longest answer a request may give. Most of that reservation goes unused, and what is left over scatters into holes.
+- Paging cuts the cache into fixed-size blocks and adds a block table, which is what virtual memory does for processes.
+- Waste per sequence drops to the tail of one block. Holes disappear, because every free block is interchangeable.
+- Blocks are shared by reference count and found by hashing their tokens. vLLM enables prefix caching by default.
+- When the pool empties, vLLM frees a whole sequence's blocks and recomputes it later. The swap path from the paper is gone.
 - The payoff is concurrency, not raw speed. It shows up as throughput only if KV memory was what you were short of.
 
-Next: if blocks can be shared between two samples of one request, why not between two different requests that start with the same system prompt?
+Next in this series: prefix caching, and what it costs to keep blocks around after a request finishes.
 
 ## References
 
 - Kwon et al., *Efficient Memory Management for Large Language Model Serving with PagedAttention*, SOSP 2023. [arXiv][paged]
+- vLLM source at commit `640c349`. The files worth reading are `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/sched/scheduler.py`.
 - [vLLM PagedAttention kernel design][vllmkernel] and the [vLLM architecture walkthrough][vllmarch]
 - [NVIDIA TensorRT-LLM KV cache management][trtllm], a different block manager for the same problem
-- Prabhu et al., *vAttention: Dynamic Memory Management for Serving LLMs without PagedAttention*. [arXiv][vattn]
-- [Meta Llama 3.1 model configuration][llama], source of the 320 KiB-per-token figure
+- Prabhu et al., *vAttention*, which keeps contiguous virtual addressing and pages the physical memory underneath. [arXiv][vattn]
+- [Meta Llama 3.1 model configuration][llama], the source of the 320 KiB per token figure
 
 [paged]: https://arxiv.org/abs/2309.06180
 [vllmkernel]: https://docs.vllm.ai/en/latest/design/paged_attention/
