@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Distributed LLM Inference: TP, PP, and EP Explained"
+title: "LLM inference #4: tensor, pipeline, and expert parallelism"
 date: 2026-10-08 00:00:00 -0400
 categories: [AI, LLM Inference]
 tags: [llm, inference, tensor-parallelism, pipeline-parallelism, expert-parallelism, gpu]
@@ -324,7 +324,7 @@ The three strategies expose three kinds of waiting:
 
 For intuition, suppose one operation takes 10 ms on one GPU. An ideal two-way split reduces local work to 5 ms. If the split adds 1 ms of communication that cannot overlap, the step takes 6 ms. If it adds 6 ms instead, the step takes 11 ms. This invented arithmetic illustrates the tradeoff; real execution includes overlap and more dependencies.
 
-Large transfers need bandwidth. Small, repeated exchanges can be limited by launch and synchronization latency. A fast link helps, but it does not remove the need to wait for required inputs. This connects directly to the memory and execution model in [GPU 101 for Backend Engineers]({% post_url 2026-10-04-gpu-101-for-backend-engineers %}).
+Large transfers need bandwidth. Small, repeated exchanges can be limited by launch and synchronization latency. A fast link helps, but it does not remove the need to wait for required inputs. This connects directly to the memory and execution model in [GPU 101 for backend engineers]({% post_url 2026-10-04-gpu-101-for-backend-engineers %}).
 
 When you see a distributed inference layout, trace one token representation:
 

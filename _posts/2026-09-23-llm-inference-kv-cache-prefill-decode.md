@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM Inference: KV Cache, Prefill, and Decode"
+title: "LLM inference #1: KV cache, prefill, and decode"
 date: 2026-09-23 22:27 -0400
 categories: [AI, LLM Inference]
 tags: [llm, inference, kv-cache, prefill, decode]

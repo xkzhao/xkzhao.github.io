@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Batching: Getting More Tokens from the Same Bytes"
+title: "LLM inference #5: batching, more tokens from the same bytes"
 date: 2026-11-05 00:00:00 -0400
 categories: [AI, LLM Inference]
 tags: [llm, inference, batching, continuous-batching, kv-cache, scheduling]
