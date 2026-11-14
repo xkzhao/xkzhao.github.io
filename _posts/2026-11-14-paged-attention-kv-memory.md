@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #6: paged attention, why the GPU runs out of KV cache early"
+title: "LLM inference #6: paged attention"
 date: 2026-11-14 00:00:00 -0500
 categories: [AI, LLM Inference]
 tags: [llm, inference, paged-attention, kv-cache, vllm, memory-management]

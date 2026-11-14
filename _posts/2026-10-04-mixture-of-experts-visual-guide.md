@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "LLM inference #3: mixture of experts, a bigger brain without using all of it"
+title: "LLM inference #3: Mixture of Experts"
 date: 2026-10-04 00:00:00 -0400
 categories: [AI, LLM Inference]
 tags: [llm, inference, moe, expert-parallelism, gpu]
