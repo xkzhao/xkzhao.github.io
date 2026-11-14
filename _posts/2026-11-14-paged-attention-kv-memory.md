@@ -4,7 +4,7 @@ title: "Paged attention: why the GPU runs out of KV cache early"
 date: 2026-11-14 00:00:00 -0500
 categories: [AI, LLM Inference]
 tags: [llm, inference, paged-attention, kv-cache, vllm, memory-management]
-description: "An LLM server stops admitting requests while a third of its KV memory looks free. This explains where the memory goes, how block tables get it back, and what the current vLLM code does differently from the PagedAttention paper."
+description: "An LLM server stops admitting requests while a third of its KV memory looks free. Where that memory goes, how block tables get it back, and three places where vLLM no longer matches the PagedAttention paper."
 ---
 
 Your dashboard says the eight-GPU server has KV capacity for about 120 typical requests. It stops admitting new ones at 80. The weights did not grow and nobody deployed anything. The queue builds while a third of the memory budget sits there, apparently free.
@@ -13,7 +13,7 @@ The memory is not missing. It is reserved for tokens that do not exist yet, and 
 
 The [batching article]({% post_url 2026-11-05-llm-inference-batching %}) ended on this problem. Continuous batching pays off only if you keep enough sequences resident, and every resident sequence holds its KV cache on the GPU until it finishes. The scheduler must decide whether a request fits before it admits the request, and it does not know how long the answer will be.
 
-This article explains the allocator that fixes it. I checked every claim about vLLM against the source at commit `640c349`, because the [PagedAttention paper][paged] is from 2023 and the code has moved since. Three things in the paper are no longer how vLLM works. I flag each one where it comes up, and there is a section at the end that collects them.
+The fix is an allocator, and it borrows its design from virtual memory. The vLLM details here come from the source at commit `640c349` rather than from the [PagedAttention paper][paged], which is from 2023 and no longer matches the code in three places.
 
 ## One slab per request wastes most of the memory
 
@@ -48,7 +48,7 @@ You do not know the output length when the request arrives. So "large enough" ha
   <text x="0" y="268" font-size="12" fill="currentColor" opacity="0.8">so D waits while the GPU runs at a third of the concurrency it could.</text>
 </svg>
 
-Three separate problems hide in that picture.
+That picture has three problems.
 
 **Space for tokens that arrive later.** A running sequence will use some of its reservation. You cannot lend that space out and take it back, because the region has to stay contiguous.
 
@@ -66,11 +66,11 @@ Three separate problems hide in that picture.
 
 A request allowed 8,192 tokens reserves 2.5 GiB. If it produces 2,048 tokens, it uses 0.625 GiB. The other 1.875 GiB stays reserved and untouched. Across 100 concurrent requests that is 187.5 GiB of KV capacity that nobody can use.
 
-That is the gap between your dashboard and your admission controller.
+The dashboard counts the tokens that exist. The admission controller counts the reservations.
 
 ## Virtual memory already solved this
 
-The sequence does not need a lot of memory. It needs memory it does not have yet, in one piece, at an address that cannot move. Operating systems hit the same wall in the 1960s.
+The sequence does not need a lot of memory. It needs memory it does not have yet, in one piece, at an address that cannot move. Operating systems had the same problem in the 1960s.
 
 <svg viewBox="0 0 720 250" role="img" aria-label="Virtual memory: a process sees contiguous pages, a page table maps each page to a scattered physical frame" style="width:100%;height:auto;max-width:720px;">
   <defs><marker id="pvm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
@@ -105,7 +105,7 @@ The sequence does not need a lot of memory. It needs memory it does not have yet
   <text x="0" y="234" font-size="12" fill="currentColor" opacity="0.8">No free frame is ever the wrong shape, because every frame is the same size.</text>
 </svg>
 
-Now do the same thing to the KV cache. Cut each sequence's cache into fixed-size blocks. Keep a block table per sequence that maps its block 0, 1, 2 and so on to whatever physical slots are free. The sequence keeps a strict order of positions. It stops caring where those positions live.
+Now do the same thing to the KV cache. Cut each sequence's cache into fixed-size blocks. Keep a block table per sequence that maps its block 0, 1, 2 and so on to whatever physical slots are free. The sequence keeps a strict order of positions, but those positions no longer have to sit next to each other in memory.
 
 <svg viewBox="0 0 720 300" role="img" aria-label="A sequence's logical KV blocks map through a block table to scattered slots in the GPU KV pool, with the lookup animating one block at a time" style="width:100%;height:auto;max-width:720px;">
   <style>
@@ -163,15 +163,15 @@ Now do the same thing to the KV cache. Cut each sequence's cache into fixed-size
   <text x="0" y="272" font-size="11.5" fill="currentColor" opacity="0.65">Block sizes here are 64 tokens, which is vLLM's current default.</text>
 </svg>
 
-Two separate pieces got built here and people mix them up. The **block manager** is an allocator. It owns fixed-size blocks, a free list, and the per-sequence block tables. **PagedAttention** is the attention kernel that reads K and V scattered across those blocks instead of from one flat run. You need both, and they are different code.
+Two different things came out of that paper. The **block manager** is an allocator. It owns fixed-size blocks, a free list, and the per-sequence block tables. **PagedAttention** is the attention kernel that reads K and V scattered across those blocks instead of from one flat run. You need both, and they are different code.
 
-That second piece has aged. On NVIDIA hardware vLLM now runs FlashAttention by default, and the backend hands it a `block_table` tensor directly. The hand-written `paged_attention` CUDA kernel from the paper still exists, mostly on ROCm and older paths. The block table won. The specific kernel got absorbed.
+That second piece has aged. On NVIDIA hardware vLLM now runs FlashAttention by default, and the backend hands it a `block_table` tensor directly. The hand-written `paged_attention` CUDA kernel from the paper still exists, mostly on ROCm and older paths.
 
-**Where the analogy stops.** No hardware MMU does any of this. The block table is an ordinary tensor the runtime maintains and the kernel indexes in software on every attention call. There is no page fault and no demand paging from disk. If you get a mapping wrong, nothing traps. The model reads the wrong keys and values and produces fluent, confident, wrong text.
+The analogy stops at the hardware. No MMU is involved. The block table is an ordinary tensor that the runtime maintains and the kernel indexes on every attention call, in software. There is no page fault and no demand paging from disk. A wrong mapping does not trap either, so the model reads the wrong keys and values and generates text that reads perfectly well.
 
 ## Growth costs one block
 
-This is where paging pays during decode. A sequence grows by one token per step. In the contiguous layout that is exactly why you reserved for the worst case, because growth has nowhere to go. With blocks, growth touches one block.
+A sequence grows by one token per step. The contiguous layout had to reserve for the worst case because a region cannot grow into memory that another request owns. With blocks, growth touches one block.
 
 <svg viewBox="0 0 720 230" role="img" aria-label="Animation of a sequence filling its last KV block token by token, then taking a new block from the free pool" style="width:100%;height:auto;max-width:720px;">
   <style>
@@ -217,7 +217,7 @@ This is where paging pays during decode. A sequence grows by one token per step.
   <text x="0" y="200" font-size="12" fill="currentColor" opacity="0.8">Every block before it is packed solid. The length limit no longer costs anything up front.</text>
 </svg>
 
-That bound is the result worth remembering. Wasted space per sequence is less than one block, no matter how long the sequence runs or how high you set the length limit.
+Wasted space per sequence is therefore less than one block, no matter how long the sequence runs or how high you set the length limit.
 
 ## What waste is left
 
@@ -237,7 +237,7 @@ Compare that with the 1.875 GiB the contiguous slab was holding for the same req
   <text x="0" y="200" font-size="11.5" fill="currentColor" opacity="0.65">The bars are to scale. The green one is two pixels wide.</text>
 </svg>
 
-The holes disappear too, for a reason worth stating on its own. Every free block is interchangeable. A hole can never be the wrong size when all the holes are the same size, so the allocator's job drops from "find a large enough contiguous run" to "take the next block off the free list".
+The holes disappear too. Every free block is interchangeable, so a hole can never be the wrong size. The allocator's job drops from "find a large enough contiguous run" to "take the next block off the free list".
 
 <svg viewBox="0 0 720 230" role="img" aria-label="The same GPU memory holding three sequences under contiguous allocation and nine under paged allocation" style="width:100%;height:auto;max-width:720px;">
   <text x="0" y="18" font-size="13" font-weight="600" fill="currentColor">The same memory, repacked</text>
@@ -287,7 +287,7 @@ Blocks are the unit of allocation, so their size trades two costs against each o
   <text x="0" y="216" font-size="12" fill="currentColor" opacity="0.8">vLLM moved its default from 16 to 64 as attention kernels got better at large blocks.</text>
 </svg>
 
-Block size also sets the granularity of cache hits, which matters for the next section. Two requests can only share a block if they agree on all 64 of its tokens.
+Block size also sets the granularity of cache hits. Two requests can share a block only if they agree on all 64 of its tokens.
 
 ## Sharing blocks between requests
 
@@ -315,13 +315,11 @@ Identical prefixes are common in real traffic. Every request from one applicatio
 
 Sharing works because KV is immutable once written. The keys and values for position 12 never change after the model computes position 12. vLLM finds shareable blocks by hashing the token IDs a block covers and looking the hash up in `cached_block_hash_to_block`.
 
-One detail makes this better than it sounds. When a request finishes, its blocks go back on a free list that keeps their contents and their hash. `FreeKVCacheBlockQueue` orders that list least-recently-used first, so a freed block survives until someone needs the space. A later request with the same prefix can still hit it.
-
-I had expected a fork-and-copy design here, because that is what the paper describes for parallel sampling and beam search. The current code does something simpler, which I cover below.
+When a request finishes, its blocks go back on a free list that keeps their contents and their hash. `FreeKVCacheBlockQueue` orders that list least-recently-used first, so a freed block survives until someone needs the space. A later request with the same prefix can still hit it.
 
 ## When the pool is empty
 
-Paging buys headroom. It does not make memory infinite, and continuous batching will admit requests until the headroom is gone. Sequences keep growing. Eventually a running sequence asks for a block and the free list is empty.
+Paging gives you more headroom, not infinite memory. Continuous batching admits requests until that headroom is gone, and the sequences already running keep growing. Eventually one of them asks for a block and the free list is empty.
 
 <svg viewBox="0 0 720 235" role="img" aria-label="When the free pool is empty vLLM frees a victim request's blocks, resets its progress, and puts it back on the waiting queue" style="width:100%;height:auto;max-width:720px;">
   <defs><marker id="ppr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
@@ -344,11 +342,11 @@ Paging buys headroom. It does not make memory infinite, and continuous batching 
   <text x="0" y="222" font-size="11.5" fill="currentColor" opacity="0.65">Source: _preempt_request in vllm/v1/core/sched/scheduler.py</text>
 </svg>
 
-The paper also describes swapping the victim's blocks to CPU memory and copying them back later. The V1 engine dropped that. Recompute is the only preemption path now, and prefix caching takes most of the sting out of it, because the victim's old blocks are often still sitting on the free list when it comes back.
+The paper also describes swapping the victim's blocks to CPU memory and copying them back later. The V1 engine dropped that path. Recompute is the only one left. The victim's old blocks are often still on the free list when it returns, so the recompute is usually cheaper than a cold prefill.
 
 ## Where the paper and the current code differ
 
-I went in expecting the 2023 design and found three differences. If you learned this from the paper, these are the corrections.
+The paper is from 2023. Three of its mechanisms are no longer what the code does.
 
 **Block size.** The paper and most write-ups use 16 tokens. `DEFAULT_BLOCK_SIZE` in `vllm/config/cache.py` is now 64. Larger blocks suit the attention kernels that shipped since.
 
@@ -356,21 +354,21 @@ I went in expecting the 2023 design and found three differences. If you learned 
 
 **Sharing.** The paper forks a sequence and copies the one block both children need to write, which is classic copy-on-write. V1 has no fork path. A request with `n` above 1 becomes `n` independent child requests in `vllm/v1/engine/parallel_sampling.py`, and they share the prompt through the ordinary prefix cache. Beam search moved out of the engine entirely and now sits in the entrypoints layer. Block copies still exist in V1, but only for a narrow case, which is a partial prefix-cache hit that lands inside a block.
 
-The idea in the paper held up. The specific mechanisms around it got replaced by hashing and a shared cache.
+In all three cases the blocks and the block table stayed, and the mechanism built on top of them was replaced by hashing and a shared cache.
 
-## What you get, and what you do not
+## What paging changes
 
-"PagedAttention makes inference faster" is not quite right. What it produces is more usable KV positions per GB of GPU memory. Everything else follows from that, and only if memory was your binding constraint.
+"PagedAttention makes inference faster" is not quite right. What it produces is more usable KV positions per GB of GPU memory. Everything else follows from that, and only if memory was the limit.
 
-If you were turning requests away for lack of KV, concurrency rises, the batch grows, and throughput follows. This is where the paper's 2x to 4x against Orca comes from. Time to first token can improve too, because queued requests get admitted sooner.
+If you were turning requests away for lack of KV, more requests now fit, so the batch gets bigger and throughput rises. That is where the paper's 2x to 4x against Orca comes from. Time to first token can improve too, because queued requests get admitted sooner.
 
-Per-token latency may not improve at all. It can get slightly worse, since the kernel now indexes through a block table and a larger batch makes each step longer. You traded latency for throughput. That is usually the right trade and it is still a trade.
+Per-token latency may not improve at all. It can get slightly worse, since the kernel now indexes through a block table and a larger batch makes each step longer. That is a trade of latency for throughput, and usually the right one.
 
 If your bottleneck is compute, kernel launches, or the network, none of this helps. A GPU that was compute-bound stays compute-bound.
 
-Output quality should not change. Same K and V, same positions, same mask, different addresses. That is also the thing to test hardest, because block-table and masking bugs produce fluent wrong text rather than a crash. Test across block boundaries, cancellations, preemption and resume, and shared prefixes.
+Output quality should not change. Same K and V, same positions, same mask, different addresses. Test that hardest, because a block-table or masking bug produces wrong text instead of a crash. Test across block boundaries, cancellations, preemption and resume, and shared prefixes.
 
-One last trap. Free HBM is not free blocks. vLLM sizes the pool once at startup from `gpu_memory_utilization`, and the pool shares the GPU with weights, activations, and workspace.
+Free HBM is not free blocks. vLLM sizes the pool once at startup from `gpu_memory_utilization`, and the pool shares the GPU with weights, activations, and workspace.
 
 ## Summary
 
@@ -379,14 +377,14 @@ One last trap. Free HBM is not free blocks. vLLM sizes the pool once at startup 
 - Waste per sequence drops to the tail of one block. Holes disappear, because every free block is interchangeable.
 - Blocks are shared by reference count and found by hashing their tokens. vLLM enables prefix caching by default.
 - When the pool empties, vLLM frees a whole sequence's blocks and recomputes it later. The swap path from the paper is gone.
-- The payoff is concurrency, not raw speed. It shows up as throughput only if KV memory was what you were short of.
+- The gain is concurrency. It shows up as throughput only if KV memory was the limit.
 
 Next in this series: prefix caching, and what it costs to keep blocks around after a request finishes.
 
 ## References
 
 - Kwon et al., *Efficient Memory Management for Large Language Model Serving with PagedAttention*, SOSP 2023. [arXiv][paged]
-- vLLM source at commit `640c349`. The files worth reading are `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/sched/scheduler.py`.
+- vLLM source at commit `640c349`, in `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/sched/scheduler.py`.
 - [vLLM PagedAttention kernel design][vllmkernel] and the [vLLM architecture walkthrough][vllmarch]
 - [NVIDIA TensorRT-LLM KV cache management][trtllm], a different block manager for the same problem
 - Prabhu et al., *vAttention*, which keeps contiguous virtual addressing and pages the physical memory underneath. [arXiv][vattn]
