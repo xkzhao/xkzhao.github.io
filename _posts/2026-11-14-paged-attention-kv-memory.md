@@ -219,7 +219,7 @@ Wasted space per sequence is therefore less than one block, no matter how long t
 
 ## What waste is left
 
-vLLM's default block size is 64 tokens, set by `DEFAULT_BLOCK_SIZE` in `vllm/config/cache.py`. For the Llama 3.1 70B numbers above, one block costs 64 x 320 KiB = 20 MiB across the model. A sequence that stops partway through its last block leaves at most 63 unused token slots. Averaged over arbitrary stopping points that is about 32 slots, or 10 MiB.
+vLLM's default block size is 64 tokens, set by [`DEFAULT_BLOCK_SIZE`][dbs]. For the Llama 3.1 70B numbers above, one block costs 64 x 320 KiB = 20 MiB across the model. A sequence that stops partway through its last block leaves at most 63 unused token slots. Averaged over arbitrary stopping points that is about 32 slots, or 10 MiB.
 
 Compare that with the 1.875 GiB the contiguous slab was holding for the same request.
 
@@ -289,7 +289,7 @@ Block size also sets the granularity of cache hits. Two requests can share a blo
 
 ## Sharing blocks between requests
 
-Once KV lives in blocks behind a table, two sequences can point at the same block. vLLM tracks this with `ref_cnt` on `KVCacheBlock` in `vllm/v1/core/kv_cache_utils.py`. A block with `ref_cnt` above zero cannot be reused by anyone else.
+Once KV lives in blocks behind a table, two sequences can point at the same block. vLLM tracks this with [`ref_cnt` on `KVCacheBlock`][kvb]. A block with `ref_cnt` above zero cannot be reused by anyone else.
 
 Identical prefixes are common in real traffic. Every request from one application starts with the same system prompt. Every turn of a chat repeats the whole conversation so far.
 
@@ -311,9 +311,9 @@ Identical prefixes are common in real traffic. Every request from one applicatio
   <text x="0" y="218" font-size="12" fill="currentColor" opacity="0.8">vLLM turns this on by default. enable_prefix_caching is True in vllm/config/cache.py.</text>
 </svg>
 
-Sharing works because KV is immutable once written. The keys and values for position 12 never change after the model computes position 12. vLLM finds shareable blocks by hashing the token IDs a block covers and looking the hash up in `cached_block_hash_to_block`.
+Sharing works because KV is immutable once written. The keys and values for position 12 never change after the model computes position 12. vLLM finds shareable blocks by hashing the token IDs a block covers and looking the hash up in [`cached_block_hash_to_block`][cbh].
 
-When a request finishes, its blocks go back on a free list that keeps their contents and their hash. `FreeKVCacheBlockQueue` orders that list least-recently-used first, so a freed block survives until someone needs the space. A later request with the same prefix can still hit it.
+When a request finishes, its blocks go back on a free list that keeps their contents and their hash. [`FreeKVCacheBlockQueue`][fq] orders that list least-recently-used first, so a freed block survives until someone needs the space. A later request with the same prefix can still hit it.
 
 ## When the pool is empty
 
@@ -346,11 +346,11 @@ The paper also describes swapping the victim's blocks to CPU memory and copying 
 
 The paper is from 2023. Three of its mechanisms are no longer what the code does.
 
-**Block size.** The paper and most write-ups use 16 tokens. `DEFAULT_BLOCK_SIZE` in `vllm/config/cache.py` is now 64. Larger blocks suit the attention kernels that shipped since.
+**Block size.** The paper and most write-ups use 16 tokens. [`DEFAULT_BLOCK_SIZE`][dbs] is now 64. Larger blocks suit the attention kernels that shipped since.
 
-**Preemption.** The paper offers swap-out and recompute. V1 implements recompute only. `_preempt_request` frees the blocks, sets `num_computed_tokens` to 0, and re-queues the request.
+**Preemption.** The paper offers swap-out and recompute. V1 implements recompute only. [`_preempt_request`][pre] frees the blocks, sets `num_computed_tokens` to 0, and re-queues the request.
 
-**Sharing.** The paper forks a sequence and copies the one block both children need to write, which is classic copy-on-write. V1 has no fork path. A request with `n` above 1 becomes `n` independent child requests in `vllm/v1/engine/parallel_sampling.py`, and they share the prompt through the ordinary prefix cache. Beam search moved out of the engine entirely and now sits in the entrypoints layer. Block copies still exist in V1, but only for a narrow case, which is a partial prefix-cache hit that lands inside a block.
+**Sharing.** The paper forks a sequence and copies the one block both children need to write, which is classic copy-on-write. V1 has no fork path. A request with `n` above 1 becomes `n` independent child requests in [`parallel_sampling.py`][ps], and they share the prompt through the ordinary prefix cache. Beam search moved out of the engine entirely and now sits in the entrypoints layer. Block copies still exist in V1, but only for a narrow case, which is a partial prefix-cache hit that lands inside a block.
 
 In all three cases the blocks and the block table stayed, and the mechanism built on top of them was replaced by hashing and a shared cache.
 
@@ -382,13 +382,20 @@ Next in this series: prefix caching, and what it costs to keep blocks around aft
 ## References
 
 - Kwon et al., *Efficient Memory Management for Large Language Model Serving with PagedAttention*, SOSP 2023. [arXiv][paged]
-- vLLM source, in `vllm/v1/core/kv_cache_manager.py`, `vllm/v1/core/block_pool.py`, `vllm/v1/core/kv_cache_utils.py`, and `vllm/v1/core/sched/scheduler.py`.
+- vLLM source, in [`kv_cache_manager.py`][kcm], [`block_pool.py`][cbh], [`kv_cache_utils.py`][kvb], and [`scheduler.py`][pre].
 - [vLLM PagedAttention kernel design][vllmkernel] and the [vLLM architecture walkthrough][vllmarch]
 - [NVIDIA TensorRT-LLM KV cache management][trtllm], a different block manager for the same problem
 - Prabhu et al., *vAttention*, which keeps contiguous virtual addressing and pages the physical memory underneath. [arXiv][vattn]
 - [Meta Llama 3.1 model configuration][llama], the source of the 320 KiB per token figure
 
 [paged]: https://arxiv.org/abs/2309.06180
+[dbs]: https://github.com/vllm-project/vllm/blob/main/vllm/config/cache.py
+[kvb]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_utils.py
+[fq]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_utils.py
+[cbh]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/block_pool.py
+[kcm]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_manager.py
+[pre]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/scheduler.py
+[ps]: https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/parallel_sampling.py
 [vllmkernel]: https://docs.vllm.ai/en/latest/design/paged_attention/
 [vllmarch]: https://vllm-project.github.io/2025/09/05/anatomy-of-vllm.html
 [trtllm]: https://nvidia.github.io/TensorRT-LLM/features/kvcache.html
