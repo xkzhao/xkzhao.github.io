@@ -225,9 +225,11 @@ Because segments are immutable, a heavily loaded index continues dropping small 
 
 ### When and How Merging Triggers
 
-Whenever a flush completes, an internal `MergePolicy` (such as `TieredMergePolicy`) reviews the structural layout of the directory. If it detects an aggregation of similarly sized segments, it schedules an asynchronous optimization task.
+Whenever a flush completes, an internal `MergePolicy` (such as `TieredMergePolicy`) reviews the structural layout of the directory. It ranks the eligible segments by byte size, prorated by how much of each one has been deleted, and looks for a run of similarly sized segments worth consolidating. If it finds one, it schedules an asynchronous optimization task.
 
-This work is offloaded to a `MergeScheduler` (by default, `ConcurrentMergeScheduler`). This scheduler processes the segment data alignment on dedicated background threads, ensuring that the heavy reading and writing operations do not block ongoing concurrent `addDocument()` workloads.
+This work is offloaded to a `MergeScheduler` (by default, `ConcurrentMergeScheduler`), which runs merges on dedicated background threads. In normal operation the heavy reading and writing does not block concurrent `addDocument()` calls.
+
+There is one important exception, and it is worth knowing about before you meet it in production. When merging falls behind, meaning the scheduler already holds `maxMergeCount` merge threads and at least one more merge is still pending, it deliberately stalls the calling application thread until merging catches up. That backpressure is what stops an indexer from outrunning its merges, and it is why an indexing slowdown can show up with no corresponding query slowdown. [Part 3 follows one merge end to end]({% post_url 2026-11-21-how-lucene-merges-segments %}), including this stall path and what a merge costs while queries are live.
 
 ## How to Support Ingesting and Indexing 1M Docs into Lucene
 
