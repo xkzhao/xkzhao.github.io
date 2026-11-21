@@ -993,7 +993,7 @@ The read path rarely asks how to do a piece of work faster. It asks how to prove
 
 Stated as a design rule: **push cheap, exact summaries as close to the data as you can, and make every expensive operation ask a summary for permission first.** Lucene can do this because `docFreq` and the impacts are exact rather than sampled. A system whose summaries are estimates has to handle being wrong, which is a different and much harder design.
 
-*Next in this series: what happens when segments merge — how Lucene rewrites and consolidates the very files this article read from, why the read path's costs make merging unavoidable, and what it costs a live system.*
+*Next in this series: [How Lucene Merges Segments While You Keep Searching]({% post_url 2026-11-21-how-lucene-merges-segments %}).*
 
 ---
 

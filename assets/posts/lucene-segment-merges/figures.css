@@ -1,0 +1,221 @@
+.lucene-figure {
+  --lucene-input: #397cad;
+  --lucene-output: #318464;
+  --lucene-border: color-mix(in srgb, currentColor 22%, transparent);
+  --lucene-surface: color-mix(in srgb, currentColor 4%, transparent);
+  --lucene-accent: color-mix(in srgb, var(--lucene-input) 18%, transparent);
+  margin: 1.75rem 0;
+  padding: clamp(0.85rem, 3vw, 1.4rem);
+  border: 1px solid var(--lucene-border);
+  border-radius: 0.75rem;
+  background: var(--lucene-surface);
+}
+
+.lucene-figure [hidden] {
+  display: none !important;
+}
+
+.lucene-figure .lucene-figure-title {
+  margin: 0 0 1rem;
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: start;
+}
+
+.lucene-walkthrough[data-interactive] .lucene-steps {
+  display: grid;
+}
+
+.lucene-walkthrough[data-interactive] .lucene-step {
+  grid-area: 1 / 1;
+}
+
+.lucene-walkthrough .lucene-step[inert] {
+  visibility: hidden;
+}
+
+.lucene-figure .lucene-step {
+  padding: 1rem 0;
+  border-top: 1px solid var(--lucene-border);
+}
+
+.lucene-figure .lucene-step-title {
+  margin: 0 0 0.8rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.lucene-figure .lucene-step p:last-child {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.lucene-figure .lucene-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-block: 0.35rem;
+}
+
+.lucene-figure .lucene-row-label {
+  flex-basis: 9.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.lucene-figure .lucene-doc {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--lucene-border);
+  border-radius: 0.35rem;
+  font-size: 0.81rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lucene-figure .lucene-doc small {
+  font-size: 0.75rem;
+}
+
+.lucene-figure .lucene-target {
+  border-color: var(--lucene-input);
+  background: var(--lucene-accent);
+  font-weight: 700;
+}
+
+.lucene-figure .lucene-deleted {
+  border-style: dashed;
+}
+
+.lucene-figure .lucene-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--lucene-border);
+}
+
+.lucene-figure .lucene-controls button {
+  min-height: 2.75rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--lucene-border);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.lucene-figure .lucene-controls button:hover:not([aria-disabled="true"]),
+.lucene-figure .lucene-controls button[data-merge-action="play"] {
+  background: var(--lucene-accent);
+}
+
+.lucene-figure .lucene-controls button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.lucene-figure .lucene-controls button[aria-disabled="true"] {
+  opacity: 0.56;
+}
+
+.lucene-figure .lucene-count {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+}
+
+.lucene-figure .lucene-chart {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.lucene-figure .lucene-chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.86rem;
+}
+
+.lucene-figure .lucene-chart-row strong {
+  min-width: 4.2rem;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.lucene-figure .lucene-bars {
+  display: flex;
+  height: 0.8rem;
+  overflow: hidden;
+  border-radius: 0.2rem;
+  background: var(--lucene-border);
+}
+
+.lucene-figure .lucene-input-bar {
+  width: calc(var(--inputs) * 100% / 9);
+  background: var(--lucene-input);
+}
+
+.lucene-figure .lucene-output-bar {
+  width: calc(var(--output) * 100% / 9);
+  background: var(--lucene-output);
+}
+
+.lucene-figure .lucene-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin: 1rem 0 0;
+  font-size: 0.8rem;
+}
+
+.lucene-figure .lucene-legend span::before {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-inline-end: 0.35rem;
+  border-radius: 0.12rem;
+  background: var(--lucene-input);
+  content: "";
+}
+
+.lucene-figure .lucene-legend span + span::before {
+  background: var(--lucene-output);
+}
+
+.lucene-figure .lucene-figure-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 600px) {
+  .lucene-figure .lucene-row-label {
+    flex-basis: 100%;
+  }
+
+  .lucene-figure .lucene-chart-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.25rem;
+  }
+
+  .lucene-figure .lucene-bars {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lucene-walkthrough[data-interactive] .lucene-step:not([inert]) .lucene-row {
+    animation: lucene-step-in 260ms ease-out both;
+  }
+
+  @keyframes lucene-step-in {
+    from { opacity: 0; transform: translateY(0.2rem); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
