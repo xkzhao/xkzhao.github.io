@@ -1,0 +1,256 @@
+.rdma-figure {
+  --rdma-accent: var(--link-color, #2461a1);
+  --rdma-border: color-mix(in srgb, currentColor 22%, transparent);
+  --rdma-tint: color-mix(in srgb, var(--rdma-accent) 12%, transparent);
+  margin: 1.6rem 0 1.9rem;
+  padding: clamp(0.75rem, 3vw, 1.35rem);
+  border: 1px solid var(--rdma-border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  font-size: 0.94rem;
+}
+
+.rdma-figure figcaption {
+  margin: 0 0 0.9rem;
+  color: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: start;
+}
+
+.rdma-figure .rdma-node {
+  display: grid;
+  align-content: center;
+  gap: 0.1rem;
+  padding: 0.5rem;
+  border: 1px solid var(--rdma-border);
+  border-radius: 0.4rem;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.rdma-local {
+  max-inline-size: 35rem;
+  margin-inline: auto;
+}
+
+.rdma-local .rdma-control-node {
+  width: fit-content;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.rdma-control-line {
+  margin: 0.45rem 0;
+  text-align: center;
+  font-size: 0.84rem;
+}
+
+.rdma-local-path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: clamp(0.25rem, 2vw, 0.8rem);
+}
+
+.rdma-local-path .rdma-node {
+  background: var(--rdma-tint);
+}
+
+.rdma-local-arrow {
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font-weight: 700;
+}
+
+.rdma-local-arrow span {
+  color: var(--rdma-accent);
+  font-size: 1.4rem;
+  line-height: 1.05;
+}
+
+.rdma-paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.55rem, 4vw, 1.7rem);
+  text-align: center;
+}
+
+.rdma-paths .rdma-path ol {
+  display: grid;
+  grid-template-rows: 1fr minmax(3.4rem, auto) 1fr;
+  gap: 1rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rdma-paths li {
+  position: relative;
+  margin: 0;
+}
+
+.rdma-paths li + li::before {
+  position: absolute;
+  inset-block-start: -1.05rem;
+  inset-inline: 0;
+  content: "↓" / "";
+  line-height: 1rem;
+}
+
+.rdma-paths .rdma-direct .rdma-node {
+  border-color: color-mix(in srgb, var(--rdma-accent) 58%, transparent);
+  background: var(--rdma-tint);
+}
+
+.rdma-direct-label {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--rdma-border);
+  border-radius: 0.4rem;
+  padding: 0.3rem;
+  font-size: 0.83rem;
+  line-height: 1.25;
+}
+
+.rdma-route {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  row-gap: 0.5rem;
+  text-align: center;
+  font-size: clamp(0.66rem, 2.8vw, 0.85rem);
+  line-height: 1.3;
+}
+
+.rdma-host {
+  grid-row: 1;
+  padding: 0.3rem;
+  border-block-end: 1px solid var(--rdma-border);
+  font-weight: 700;
+}
+
+.rdma-host-a { grid-column: 1 / 3; }
+.rdma-host-b { grid-column: 4 / 6; }
+
+.rdma-track {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 1.1rem;
+  background: linear-gradient(var(--rdma-border), var(--rdma-border)) center / 80% 2px no-repeat;
+}
+
+.rdma-record {
+  position: absolute;
+  inset-block-start: 50%;
+  left: 10%;
+  width: 1.25rem;
+  height: 0.7rem;
+  border: 1px solid var(--rdma-accent);
+  border-radius: 0.2rem;
+  background: var(--rdma-accent);
+  transform: translate(-50%, -50%);
+}
+
+.rdma-demo[data-phase="transfer"] .rdma-record {
+  left: 90%;
+  animation: rdma-move-record 1.45s ease-in-out both;
+}
+
+.rdma-demo:is([data-phase="complete"], [data-phase="persist"]) .rdma-record {
+  left: 90%;
+}
+
+.rdma-demo[data-paused] .rdma-record {
+  animation-play-state: paused;
+}
+
+@keyframes rdma-move-record {
+  from { left: 10%; }
+  to { left: 90%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rdma-demo[data-phase="transfer"] .rdma-record {
+    animation: none;
+  }
+}
+
+.rdma-demo .rdma-steps {
+  margin: 0.9rem 0 0;
+}
+
+.rdma-demo .rdma-steps li + li {
+  margin-block-start: 0.4rem;
+}
+
+.rdma-demo[data-phase] .rdma-steps {
+  display: grid;
+  padding: 0.85rem 0 0;
+  border-block-start: 1px solid var(--rdma-border);
+  list-style: none;
+}
+
+.rdma-demo[data-phase] .rdma-steps li {
+  grid-area: 1 / 1;
+  margin: 0;
+}
+
+.rdma-demo .rdma-steps [inert] {
+  visibility: hidden;
+}
+
+.rdma-controls:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.45rem 0.8rem;
+  margin-block-start: 0.85rem;
+}
+
+.rdma-status {
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rdma-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rdma-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rdma-actions button {
+  min-height: 2.75rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rdma-border);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.84rem;
+}
+
+.rdma-actions [data-rdma-action="play"],
+.rdma-actions button:not([aria-disabled="true"]):hover {
+  border-color: var(--rdma-accent);
+  background: var(--rdma-tint);
+}
+
+.rdma-actions button:focus-visible {
+  outline: 2px solid var(--rdma-accent);
+  outline-offset: 2px;
+}
+
+.rdma-actions button[aria-disabled="true"] {
+  opacity: 0.55;
+}
